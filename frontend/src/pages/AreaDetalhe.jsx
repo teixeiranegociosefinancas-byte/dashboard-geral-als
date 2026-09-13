@@ -257,6 +257,57 @@ function DetalheFinanceiro({ d }) {
   );
 }
 
+function DetalheOpex({ d }) {
+  const serie = d.serie_mensal || [];
+  return (
+    <>
+      <div className="grid">
+        <div className="card">
+          <div className="card-label">OPEX (mês mais recente)</div>
+          <div className="card-value teal">{fmtMoeda(d.opex_total_atual)}</div>
+        </div>
+        <div className="card">
+          <div className="card-label">OPEX / Receita líquida (mês mais recente)</div>
+          <div className="card-value teal">{d.opex_pct_receita_atual !== null ? fmtPct(d.opex_pct_receita_atual) : "—"}</div>
+        </div>
+        <div className="card">
+          <div className="card-label">OPEX / Receita líquida (média do período)</div>
+          <div className="card-value teal">{d.opex_pct_receita_media !== null ? fmtPct(d.opex_pct_receita_media) : "—"}</div>
+        </div>
+      </div>
+
+      <div className="section-title">OPEX real x receita — mês a mês</div>
+      <table>
+        <thead>
+          <tr>
+            <th>Mês</th>
+            <th>Pessoal</th><th>Gerais</th><th>Bancárias</th><th>OPEX total</th>
+            <th>Receita líquida</th><th>OPEX / Receita líquida</th><th>OPEX / Receita bruta</th>
+          </tr>
+        </thead>
+        <tbody>
+          {serie.map((m) => (
+            <tr key={m.period}>
+              <td>{m.period}</td>
+              <td>{fmtMoeda(m.despesas_pessoal)}</td>
+              <td>{fmtMoeda(m.despesas_gerais)}</td>
+              <td>{fmtMoeda(m.despesas_bancarias)}</td>
+              <td>{fmtMoeda(m.opex_total)}</td>
+              <td>{fmtMoeda(m.receita_liquida)}</td>
+              <td>{m.opex_pct_receita_liquida !== null ? fmtPct(m.opex_pct_receita_liquida) : "—"}</td>
+              <td>{m.opex_pct_receita_bruta !== null ? fmtPct(m.opex_pct_receita_bruta) : "—"}</td>
+            </tr>
+          ))}
+        </tbody>
+      </table>
+
+      <p className="page-subtitle" style={{ marginTop: "0.5rem" }}>
+        {d.aviso}
+      </p>
+    </>
+  );
+}
+
 function DetalheOrcamento({ d }) {
   const serie = d.serie_mensal || [];
   const proximo = d.projecao_proximo_mes;
@@ -581,6 +632,7 @@ const RENDERERS = {
   financeiro: DetalheFinanceiro,
   orcamento: DetalheOrcamento,
   rh: DetalheRh,
+  opex: DetalheOpex,
 };
 
 export default function AreaDetalhe({ area }) {

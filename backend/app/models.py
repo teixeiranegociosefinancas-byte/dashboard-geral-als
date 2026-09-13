@@ -1,7 +1,7 @@
 from typing import Any, Literal
 from pydantic import BaseModel
 
-Area = Literal["comercial", "frota", "operacional", "financeiro", "orcamento", "rh"]
+Area = Literal["comercial", "frota", "operacional", "financeiro", "orcamento", "rh", "opex"]
 
 
 class IngestPayload(BaseModel):

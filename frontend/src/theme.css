@@ -13,6 +13,7 @@
   --red: #f87171;
   --rose: #fb7185;
   --indigo: #818cf8;
+  --teal: #2dd4bf;
 }
 
 * {
@@ -154,6 +155,7 @@ body {
 .card-value.red { color: var(--red); }
 .card-value.rose { color: var(--rose); }
 .card-value.indigo { color: var(--indigo); }
+.card-value.teal { color: var(--teal); }
 
 .card-meta {
   margin-top: 8px;

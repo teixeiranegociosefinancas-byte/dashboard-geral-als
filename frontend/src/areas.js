@@ -5,6 +5,7 @@ export const AREAS = [
   { key: "financeiro", label: "Financeiro", color: "purple" },
   { key: "orcamento", label: "Orçamento", color: "rose" },
   { key: "rh", label: "RH / DP", color: "indigo" },
+  { key: "opex", label: "OPEX", color: "teal" },
 ];
 
 export function areaLabel(key) {

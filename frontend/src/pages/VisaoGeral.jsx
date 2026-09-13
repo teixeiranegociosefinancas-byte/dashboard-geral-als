@@ -132,6 +132,27 @@ function CardsRh({ doc, onClick }) {
   );
 }
 
+function CardsOpex({ doc, onClick }) {
+  const d = doc?.data;
+  return (
+    <>
+      <KpiCard
+        label="OPEX (mês mais recente)"
+        value={d ? fmtMoeda(d.opex_total_atual) : "sem dados"}
+        color="teal"
+        meta={doc ? `Atualizado em ${fmtData(doc.ingested_at)}` : "peça pro Claude atualizar"}
+        onClick={onClick}
+      />
+      <KpiCard
+        label="OPEX / Receita líquida"
+        value={d && d.opex_pct_receita_atual !== null ? fmtPct(d.opex_pct_receita_atual) : "—"}
+        color="teal"
+        onClick={onClick}
+      />
+    </>
+  );
+}
+
 export default function VisaoGeral({ onNavigate }) {
   const [dados, setDados] = useState(null);
   const [erro, setErro] = useState(null);
@@ -145,7 +166,7 @@ export default function VisaoGeral({ onNavigate }) {
   return (
     <div>
       <h1 className="page-title">Visão Geral</h1>
-      <p className="page-subtitle">Panorama consolidado — Comercial, Frota, Operacional, Financeiro, Orçamento e RH/DP</p>
+      <p className="page-subtitle">Panorama consolidado — Comercial, Frota, Operacional, Financeiro, Orçamento, RH/DP e OPEX</p>
 
       {erro && (
         <div className="aviso">
@@ -164,6 +185,7 @@ export default function VisaoGeral({ onNavigate }) {
           <CardsFinanceiro doc={dados.financeiro} onClick={() => onNavigate("financeiro")} />
           <CardsOrcamento doc={dados.orcamento} onClick={() => onNavigate("orcamento")} />
           <CardsRh doc={dados.rh} onClick={() => onNavigate("rh")} />
+          <CardsOpex doc={dados.opex} onClick={() => onNavigate("opex")} />
         </div>
       )}
     </div>
