@@ -24,7 +24,11 @@ def ingest(payload: IngestPayload):
     if payload.area == "frota":
         resultado = normalize(payload.rows, cadastro=(payload.extra or {}).get("cadastro"))
     elif payload.area == "comercial":
-        resultado = normalize(payload.rows, propostas_arquivos=(payload.extra or {}).get("propostas_arquivos"))
+        resultado = normalize(
+            payload.rows,
+            propostas_arquivos=(payload.extra or {}).get("propostas_arquivos"),
+            vendedor_rows=(payload.extra or {}).get("vendedor_rows"),
+        )
     elif payload.area == "financeiro":
         resultado = normalize(payload.rows, recebimento=(payload.extra or {}).get("recebimento"))
     else:

@@ -1,5 +1,13 @@
-"""Normalizador Comercial — faturamento por serviço/vendedor (RELATÓRIO META COMERCIAL)
-e contagem de propostas geradas por vendedor/mês (proxy, ver aviso abaixo).
+"""Normalizador Comercial — faturamento por serviço (DRE) e por vendedor
+(relatório de Comissão de OS) e contagem de propostas geradas por vendedor/mês
+(proxy, ver aviso abaixo).
+
+Faturamento total e por_servico vêm do DRE (linhas 111-123) — fonte de verdade
+já validada. Faturamento por vendedor vem de uma base diferente (Comissão de
+OS, por "Data de Fechamento" da OS) — por isso é recebido separadamente em
+`vendedor_rows` e NUNCA somado a faturamento_total/por_servico: são
+metodologias diferentes (conta contábil x OS individual) e os totais não
+batem exatamente entre si (diferença real observada ~5%, esperada).
 
 Não existe hoje um log central confiável de propostas comerciais (confirmado em
 exploração real: CODIGOS DE PROPOSTAS.xlsx é só uma numeração sequencial, sem
@@ -11,7 +19,11 @@ por isso essa função aceita `propostas_arquivos` como uma lista solta de
 from collections import defaultdict
 
 
-def normalize_comercial(faturamento_linhas: list[dict], propostas_arquivos: list[dict] | None = None) -> dict:
+def normalize_comercial(
+    faturamento_linhas: list[dict],
+    propostas_arquivos: list[dict] | None = None,
+    vendedor_rows: list[dict] | None = None,
+) -> dict:
     por_servico = defaultdict(float)
     por_vendedor = defaultdict(lambda: {"faturamento": 0.0, "meta": 0.0})
     faturamento_total = 0.0
@@ -31,6 +43,17 @@ def normalize_comercial(faturamento_linhas: list[dict], propostas_arquivos: list
 
         faturamento_total += valor
         meta_total += meta
+
+    # Faturamento por vendedor, de uma base separada (Comissão de OS) — não
+    # entra em faturamento_total/por_servico, só alimenta a tabela por vendedor.
+    if vendedor_rows:
+        for linha in vendedor_rows:
+            vendedor = (linha.get("vendedor") or "").strip()
+            valor = float(linha.get("faturamento") or 0)
+            meta = float(linha.get("meta") or 0)
+            if vendedor:
+                por_vendedor[vendedor]["faturamento"] += valor
+                por_vendedor[vendedor]["meta"] += meta
 
     propostas_por_vendedor_mes = defaultdict(int)
     if propostas_arquivos:

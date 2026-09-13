@@ -182,8 +182,6 @@ function DetalheFinanceiro({ d }) {
         )}
       </div>
 
-      {d.aviso_recebimento && <div className="aviso">{d.aviso_recebimento}</div>}
-
       <div className="section-title">Série mensal</div>
       <table>
         <thead>
@@ -248,7 +246,6 @@ export default function AreaDetalhe({ area }) {
 
       {doc?.data && (
         <>
-          {doc.data.aviso && <div className="aviso">{doc.data.aviso}</div>}
           {doc.requires_review && (
             <div className="aviso">Este dado veio de um PDF extraído automaticamente — vale conferir antes de confiar 100%.</div>
           )}
