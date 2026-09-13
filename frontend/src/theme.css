@@ -293,3 +293,59 @@ tr:hover td {
   background: rgba(248, 113, 113, 0.12);
   color: var(--red);
 }
+
+.explicacoes {
+  background: var(--card);
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  padding: 4px 16px;
+  margin-top: 20px;
+}
+
+.explicacoes summary {
+  cursor: pointer;
+  padding: 12px 0;
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--text-dim);
+  list-style: none;
+}
+
+.explicacoes summary::-webkit-details-marker {
+  display: none;
+}
+
+.explicacoes summary::before {
+  content: "▸ ";
+  color: var(--text-faint);
+}
+
+.explicacoes[open] summary::before {
+  content: "▾ ";
+}
+
+.explicacoes-item {
+  padding: 4px 0 16px;
+  border-top: 1px solid var(--border);
+}
+
+.explicacoes-item:first-of-type {
+  border-top: none;
+}
+
+.explicacoes-item h4 {
+  font-size: 13px;
+  margin: 12px 0 6px;
+  color: var(--text);
+}
+
+.explicacoes-item p {
+  font-size: 13px;
+  line-height: 1.55;
+  color: var(--text-dim);
+  margin: 0 0 8px;
+}
+
+.explicacoes-item p:last-child {
+  margin-bottom: 0;
+}

@@ -432,6 +432,46 @@ function DetalheOrcamento({ d }) {
         </tbody>
       </table>
 
+      <details className="explicacoes">
+        <summary>Explicações</summary>
+
+        <div className="explicacoes-item">
+          <h4>Por que o combustível variou tanto em 2026 (e por que não usamos o IPCA pra prever)</h4>
+          <p>
+            <strong>Fatos:</strong> o preço médio pago por litro pela frota da ALS saltou de R$5,89 (fixo em janeiro
+            e fevereiro) para uma faixa de R$7,15 a R$7,76 em março-abril, inclusive dentro do mesmo veículo. Isso bate
+            com um evento real e documentado: segundo a ANP, o Diesel S10 subiu 16,23% no Brasil em março de 2026
+            (de R$6,10 para R$7,09/litro), por causa do conflito no Oriente Médio iniciado em 28/02/2026, que disparou
+            a cotação internacional do petróleo — o Brasil importa 25% a 30% do diesel que consome, então o preço
+            interno segue o mercado externo.
+          </p>
+          <p>
+            <strong>Análise:</strong> esse é um choque de mercado de commodity (geopolítico), não inflação normal ao
+            consumidor — por isso o IPCA não serve pra explicar nem prever esse tipo de oscilação, e não foi usado
+            como base do orçamento estimado. A média acumulada usada aqui já absorve esse tipo de pico com o tempo,
+            por ser uma média de vários meses reais, incluindo os de alta.
+          </p>
+        </div>
+
+        <div className="explicacoes-item">
+          <h4>Por que o salário teve reajuste em janeiro (e por que também não é o IPCA)</h4>
+          <p>
+            <strong>Fatos:</strong> a ALS está sob duas convenções coletivas (CCT) do mesmo sindicato patronal
+            (SEAC/BA): uma com o SINTRACAP (motoristas, ajudantes, carregadores — o pessoal de caminhão) e outra com
+            o SINDILIMP (asseio, conservação, controle de pragas — o pessoal de desinsetização). As duas têm o mesmo
+            texto de reajuste: data-base sempre 1º de janeiro, com 7,23% em 01/01/2025 e 8,50% em 01/01/2026 (faixa
+            de piso da ALS, até R$4.999,99). O IPCA acumulado oficial (IBGE) foi de 4,83% em 2024 e 4,26% em 2025.
+          </p>
+          <p>
+            <strong>Análise:</strong> o reajuste é negociado direto entre sindicatos, sem nenhuma fórmula ligada a
+            IPCA/INPC, e ficou bem acima da inflação nos dois anos (quase o dobro em 2026) — é ganho real negociado,
+            não correção de inflação. O reajuste de janeiro/2026 já está embutido nos dados reais usados aqui; não há
+            novo reajuste dentro do período que o orçamento projeta hoje (o próximo é só em 01/01/2027, e esse
+            percentual ainda não existe).
+          </p>
+        </div>
+      </details>
+
       <p className="page-subtitle" style={{ marginTop: "0.5rem" }}>
         {d.aviso}
       </p>
