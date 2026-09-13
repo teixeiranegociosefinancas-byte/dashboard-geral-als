@@ -17,6 +17,7 @@ def normalize_operacional(linhas: list[dict]) -> dict:
     com_os = 0
     por_status = defaultdict(int)
     por_servico = defaultdict(lambda: {"quantidade": 0, "valor_total": 0.0})
+    por_veiculo = defaultdict(lambda: {"quantidade": 0, "valor_total": 0.0})
     por_dia = defaultdict(int)
     faturamento_total = 0.0
 
@@ -36,6 +37,11 @@ def normalize_operacional(linhas: list[dict]) -> dict:
         por_servico[servico]["quantidade"] += 1
         por_servico[servico]["valor_total"] += valor
         faturamento_total += valor
+
+        veiculo = (linha.get("veiculo") or "").strip().upper()
+        if veiculo:
+            por_veiculo[veiculo]["quantidade"] += 1
+            por_veiculo[veiculo]["valor_total"] += valor
 
         data = (linha.get("data") or "").strip()
         if data:
@@ -57,6 +63,10 @@ def normalize_operacional(linhas: list[dict]) -> dict:
         "por_servico": {
             k: {"quantidade": v["quantidade"], "valor_total": round(v["valor_total"], 2)}
             for k, v in sorted(por_servico.items(), key=lambda kv: -kv[1]["valor_total"])
+        },
+        "por_veiculo": {
+            k: {"quantidade": v["quantidade"], "valor_total": round(v["valor_total"], 2)}
+            for k, v in sorted(por_veiculo.items(), key=lambda kv: -kv[1]["valor_total"])
         },
         "volume_por_dia": dict(sorted(por_dia.items())),
     }

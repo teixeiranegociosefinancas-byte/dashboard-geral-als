@@ -38,19 +38,42 @@ function DetalheComercial({ d }) {
       <div className="section-title">Faturamento por vendedor</div>
       <table>
         <thead>
-          <tr><th>Vendedor</th><th>Faturamento</th><th>Meta</th><th>Atingimento</th></tr>
+          <tr>
+            <th>Vendedor</th><th>Faturamento total</th><th>Status</th>
+            <th>Mês ref.</th><th>Faturamento no mês</th><th>Falta p/ próxima faixa</th>
+          </tr>
         </thead>
         <tbody>
-          {vendedores.map(([nome, v]) => (
-            <tr key={nome}>
-              <td>{nome}</td>
-              <td>{fmtMoeda(v.faturamento)}</td>
-              <td>{fmtMoeda(v.meta)}</td>
-              <td>{v.atingimento_pct !== null ? fmtPct(v.atingimento_pct) : "—"}</td>
-            </tr>
-          ))}
+          {vendedores.map(([nome, v]) => {
+            const pm = v.progresso_meta;
+            const statusLabel = {
+              nao_recebe_comissao: "não recebe comissão",
+              ex_vendedor: "ex-vendedor(a)",
+              ativo: "—",
+            }[v.status || "ativo"];
+            return (
+              <tr key={nome}>
+                <td>{nome}</td>
+                <td>{fmtMoeda(v.faturamento)}</td>
+                <td>{statusLabel === "—" ? "—" : <span className="badge">{statusLabel}</span>}</td>
+                <td>{pm ? pm.mes_referencia : "—"}</td>
+                <td>{pm ? fmtMoeda(pm.faturamento_mes) : "—"}</td>
+                <td>
+                  {!pm
+                    ? "—"
+                    : pm.proxima_faixa_limite === null
+                    ? "Faixa máxima (80 mil+)"
+                    : `${fmtMoeda(pm.falta_valor)} (${fmtPct(pm.falta_pct)}) p/ ${fmtMoeda(pm.proxima_faixa_limite)}`}
+                </td>
+              </tr>
+            );
+          })}
         </tbody>
       </table>
+      <p className="page-subtitle" style={{ marginTop: "0.5rem" }}>
+        Faixas de referência: até 20 mil, 20-50 mil, 50-80 mil, 80 mil+ (por mês). Alex Santos, Silas Teixeira e
+        Licitações não participam da comissão por faixa.
+      </p>
     </>
   );
 }
@@ -102,6 +125,7 @@ function DetalheFrota({ d }) {
 function DetalheOperacional({ d }) {
   const status = Object.entries(d.por_status || {});
   const servicos = Object.entries(d.por_servico || {});
+  const veiculos = Object.entries(d.por_veiculo || {});
   return (
     <>
       <div className="grid">
@@ -139,6 +163,16 @@ function DetalheOperacional({ d }) {
         <tbody>
           {servicos.map(([nome, v]) => (
             <tr key={nome}><td>{nome}</td><td>{fmtNumero(v.quantidade)}</td><td>{fmtMoeda(v.valor_total)}</td></tr>
+          ))}
+        </tbody>
+      </table>
+
+      <div className="section-title">Faturamento por caminhão</div>
+      <table>
+        <thead><tr><th>Veículo</th><th>OS</th><th>Faturamento</th></tr></thead>
+        <tbody>
+          {veiculos.map(([placa, v]) => (
+            <tr key={placa}><td>{placa}</td><td>{fmtNumero(v.quantidade)}</td><td>{fmtMoeda(v.valor_total)}</td></tr>
           ))}
         </tbody>
       </table>
