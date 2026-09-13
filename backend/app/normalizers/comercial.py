@@ -28,16 +28,25 @@ ficam fora do progresso_meta. O mês de referência usado é o mês mais recente
 com faturamento no `vendedor_mensal_rows` de cada vendedor — pode ser um mês
 ainda em andamento, isso fica explícito no campo `mes_referencia` devolvido.
 """
+import re
 from collections import defaultdict
+
+
+def _nome_vendedor(bruto: str) -> str:
+    """Normaliza nome de vendedor: remove prefixo numérico tipo "4- " quando
+    presente, pra casar com a convenção já usada em produção (por_vendedor
+    hoje é chaveado sem o prefixo, ex: "ALEX SANTOS", não "4- ALEX SANTOS")."""
+    return re.sub(r"^\d+-\s*", "", (bruto or "").strip()).strip()
+
 
 # Não recebem comissão por faixa (outro regime de remuneração) — confirmado
 # pelo usuário 2026-09-13.
-NAO_RECEBE_COMISSAO = {"4- ALEX SANTOS", "15- SILAS TEIXEIRA", "18- LICITACOES"}
+NAO_RECEBE_COMISSAO = {"ALEX SANTOS", "SILAS TEIXEIRA", "LICITACOES"}
 
 # Saíram do time comercial — não são mais vendedores ativos, então "falta pra
 # próxima faixa" não se aplica (o histórico de faturamento continua contando
 # no total, só não entra no progresso_meta). Confirmado pelo usuário 2026-09-13.
-EX_VENDEDORES = {"13- CLARISSA CERBINO", "16- ERICA VIVIANE DOS SANTOS", "3- EVA TÂMARA"}
+EX_VENDEDORES = {"CLARISSA CERBINO", "ERICA VIVIANE DOS SANTOS", "EVA TÂMARA"}
 
 NAO_PARTICIPA_COMISSAO = NAO_RECEBE_COMISSAO | EX_VENDEDORES
 
@@ -70,7 +79,7 @@ def normalize_comercial(
         valor = float(linha.get("faturamento") or 0)
         meta = float(linha.get("meta") or 0)
         servico = (linha.get("servico") or "").strip()
-        vendedor = (linha.get("vendedor") or "").strip()
+        vendedor = _nome_vendedor(linha.get("vendedor"))
 
         if servico:
             por_servico[servico] += valor
@@ -85,7 +94,7 @@ def normalize_comercial(
     # entra em faturamento_total/por_servico, só alimenta a tabela por vendedor.
     if vendedor_rows:
         for linha in vendedor_rows:
-            vendedor = (linha.get("vendedor") or "").strip()
+            vendedor = _nome_vendedor(linha.get("vendedor"))
             valor = float(linha.get("faturamento") or 0)
             meta = float(linha.get("meta") or 0)
             if vendedor:
@@ -105,7 +114,7 @@ def normalize_comercial(
     por_mes_vendedor: dict[str, dict[str, float]] = defaultdict(dict)
     if vendedor_mensal_rows:
         for linha in vendedor_mensal_rows:
-            vendedor = (linha.get("vendedor") or "").strip()
+            vendedor = _nome_vendedor(linha.get("vendedor"))
             mes = (linha.get("mes") or "").strip()  # "MM/AAAA"
             valor = float(linha.get("faturamento") or 0)
             if vendedor and mes:
