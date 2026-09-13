@@ -55,6 +55,14 @@ def _normalizar(payload: IngestPayload, normalize):
         )
     elif payload.area == "financeiro":
         resultado = normalize(payload.rows, recebimento=(payload.extra or {}).get("recebimento"))
+    elif payload.area == "orcamento":
+        resultado = normalize(
+            payload.rows,
+            contas_detalhadas=(payload.extra or {}).get("contas_detalhadas"),
+            contratos_novos=(payload.extra or {}).get("contratos_novos"),
+        )
+    elif payload.area == "rh":
+        resultado = normalize(payload.rows, aso_funcionarios=(payload.extra or {}).get("aso_funcionarios"))
     else:
         resultado = normalize(payload.rows)
     return resultado

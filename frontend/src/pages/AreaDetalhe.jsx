@@ -301,7 +301,7 @@ function DetalheOrcamento({ d }) {
       <div className="section-title">Receita bruta — orçamento estimado x realizado</div>
       <table>
         <thead>
-          <tr><th>Mês</th><th>Realizado</th><th>Orçamento estimado</th><th>Variação (R$)</th><th>Variação (%)</th></tr>
+          <tr><th>Mês</th><th>Realizado</th><th>Orçamento estimado</th><th>Ajuste por contrato novo</th><th>Variação (R$)</th><th>Variação (%)</th></tr>
         </thead>
         <tbody>
           {serie.map((m) => {
@@ -311,6 +311,7 @@ function DetalheOrcamento({ d }) {
                 <td>{m.period}</td>
                 <td>{fmtMoeda(v.realizado)}</td>
                 <td>{v.orcamento_estimado !== null ? fmtMoeda(v.orcamento_estimado) : "— (sem histórico anterior)"}</td>
+                <td>{v.ajuste_contratos_novos ? `+ ${fmtMoeda(v.ajuste_contratos_novos)}` : "—"}</td>
                 <td>{v.variacao_valor !== null ? fmtMoeda(v.variacao_valor) : "—"}</td>
                 <td>{v.variacao_pct !== null ? fmtPct(v.variacao_pct) : "—"}</td>
               </tr>
@@ -318,6 +319,93 @@ function DetalheOrcamento({ d }) {
           })}
         </tbody>
       </table>
+
+      {Object.keys(d.contratos_novos_considerados || {}).length > 0 && (
+        <>
+          <div className="section-title">Contratos novos considerados no ajuste</div>
+          <table>
+            <thead>
+              <tr><th>Mês</th><th>Contrato</th><th>Valor total</th><th>Início</th><th>Validade (dias)</th><th>Valor mensal aproximado</th></tr>
+            </thead>
+            <tbody>
+              {Object.entries(d.contratos_novos_considerados).flatMap(([mes, contratos]) =>
+                contratos.map((c) => (
+                  <tr key={`${mes}-${c.nome}`}>
+                    <td>{mes}</td>
+                    <td>{c.nome}</td>
+                    <td>{fmtMoeda(c.valor_total)}</td>
+                    <td>{c.data_inicio}</td>
+                    <td>{fmtNumero(c.validade_dias)}</td>
+                    <td>{fmtMoeda(c.valor_mensal_aproximado)}</td>
+                  </tr>
+                ))
+              )}
+            </tbody>
+          </table>
+          <p className="page-subtitle" style={{ marginTop: "0.25rem" }}>
+            Valor mensal aproximado = valor total ÷ dias de validade × 30 (distribuição uniforme ao longo do contrato) — não é um valor exato de recebimento mensal.
+          </p>
+        </>
+      )}
+
+      {(() => {
+        const contasGerais = d.detalhamento_contas?.despesas_gerais || {};
+        const manutencaoEntries = Object.entries(contasGerais).filter(([, c]) => c.categoria_manutencao);
+        const outrasEntries = Object.entries(contasGerais).filter(([, c]) => !c.categoria_manutencao);
+        return (
+          <>
+            {manutencaoEntries.length > 0 && (
+              <>
+                <div className="section-title">Manutenção — orçamento estimado x realizado (por conta)</div>
+                <table>
+                  <thead>
+                    <tr><th>Conta</th><th>Mês</th><th>Realizado</th><th>Orçamento estimado</th><th>Variação (%)</th></tr>
+                  </thead>
+                  <tbody>
+                    {manutencaoEntries.flatMap(([conta, c]) =>
+                      c.serie.map((m) => (
+                        <tr key={`${conta}-${m.period}`}>
+                          <td>{conta}</td>
+                          <td>{m.period}</td>
+                          <td>{fmtMoeda(m.realizado)}</td>
+                          <td>{m.orcamento_estimado !== null ? fmtMoeda(m.orcamento_estimado) : "—"}</td>
+                          <td>{m.variacao_pct !== null ? fmtPct(m.variacao_pct) : "—"}</td>
+                        </tr>
+                      ))
+                    )}
+                  </tbody>
+                </table>
+              </>
+            )}
+
+            {outrasEntries.length > 0 && (
+              <>
+                <div className="section-title">Despesas gerais — detalhamento por conta (mês mais recente)</div>
+                <table>
+                  <thead>
+                    <tr><th>Conta</th><th>Mês</th><th>Realizado</th><th>Orçamento estimado</th><th>Variação (%)</th><th>Projeção próx. mês</th></tr>
+                  </thead>
+                  <tbody>
+                    {outrasEntries.map(([conta, c]) => {
+                      const ultimo = c.serie[c.serie.length - 1];
+                      return (
+                        <tr key={conta}>
+                          <td>{conta}</td>
+                          <td>{ultimo.period}</td>
+                          <td>{fmtMoeda(ultimo.realizado)}</td>
+                          <td>{ultimo.orcamento_estimado !== null ? fmtMoeda(ultimo.orcamento_estimado) : "—"}</td>
+                          <td>{ultimo.variacao_pct !== null ? fmtPct(ultimo.variacao_pct) : "—"}</td>
+                          <td>{c.projecao_proximo_mes ? fmtMoeda(c.projecao_proximo_mes.valor) : "—"}</td>
+                        </tr>
+                      );
+                    })}
+                  </tbody>
+                </table>
+              </>
+            )}
+          </>
+        );
+      })()}
 
       <div className="section-title">Despesas — realizado x estimado</div>
       <table>
@@ -351,12 +439,108 @@ function DetalheOrcamento({ d }) {
   );
 }
 
+function DetalheRh({ d }) {
+  const serie = d.serie_mensal || [];
+  const aso = d.aso;
+  const statusLabel = { OK: "OK", VENCIDO: "vencido", SEM_ASO_VALIDO: "sem ASO válido" };
+  return (
+    <>
+      <div className="grid">
+        <div className="card">
+          <div className="card-label">Headcount atual</div>
+          <div className="card-value indigo">{fmtNumero(d.headcount_atual)}</div>
+        </div>
+        <div className="card">
+          <div className="card-label">Salário médio atual</div>
+          <div className="card-value indigo">{d.salario_medio_atual !== null ? fmtMoeda(d.salario_medio_atual) : "—"}</div>
+        </div>
+        <div className="card">
+          <div className="card-label">Taxa de demissão (mês atual)</div>
+          <div className="card-value indigo">{d.taxa_demissao_atual_pct !== null ? fmtPct(d.taxa_demissao_atual_pct) : "—"}</div>
+        </div>
+        {aso && (
+          <div className="card">
+            <div className="card-label">ASO em dia</div>
+            <div className="card-value indigo">{aso.ok}/{aso.total_funcionarios}</div>
+          </div>
+        )}
+      </div>
+
+      <div className="section-title">Headcount, admissões, demitidos e turnover</div>
+      <table>
+        <thead>
+          <tr><th>Mês</th><th>Headcount</th><th>Admissões</th><th>Demitidos</th><th>Taxa de demissão</th></tr>
+        </thead>
+        <tbody>
+          {serie.map((m) => (
+            <tr key={m.period}>
+              <td>{m.period}</td>
+              <td>{fmtNumero(m.headcount)}</td>
+              <td>{fmtNumero(m.admissoes)}</td>
+              <td>{fmtNumero(m.demitidos)}</td>
+              <td>{m.taxa_demissao_pct !== null ? fmtPct(m.taxa_demissao_pct) : "—"}</td>
+            </tr>
+          ))}
+        </tbody>
+      </table>
+
+      <div className="section-title">Salário médio mensal</div>
+      <table>
+        <thead>
+          <tr><th>Mês</th><th>Salário médio</th><th>Funcionários considerados</th></tr>
+        </thead>
+        <tbody>
+          {serie.map((m) => (
+            <tr key={m.period}>
+              <td>{m.period}</td>
+              <td>{m.salario_medio !== null ? fmtMoeda(m.salario_medio) : "—"}</td>
+              <td>{fmtNumero(m.funcionarios_contados_salario)}</td>
+            </tr>
+          ))}
+        </tbody>
+      </table>
+
+      {aso && (
+        <>
+          <div className="section-title">ASO — status por funcionário</div>
+          <table>
+            <thead>
+              <tr><th>Funcionário</th><th>Situação</th><th>Data do exame</th><th>Vencimento</th><th>Status</th><th>Observação</th></tr>
+            </thead>
+            <tbody>
+              {aso.detalhe.map((f) => (
+                <tr key={f.nome}>
+                  <td>{f.nome}</td>
+                  <td>{f.situacao || "—"}</td>
+                  <td>{f.data_exame || "—"}</td>
+                  <td>{f.vencimento || "—"}</td>
+                  <td>
+                    <span className={`badge ${f.status === "OK" ? "ok" : "warn"}`}>
+                      {statusLabel[f.status] || f.status}
+                    </span>
+                  </td>
+                  <td>{f.observacao || "—"}</td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </>
+      )}
+
+      <p className="page-subtitle" style={{ marginTop: "0.5rem" }}>
+        {d.aviso}
+      </p>
+    </>
+  );
+}
+
 const RENDERERS = {
   comercial: DetalheComercial,
   frota: DetalheFrota,
   operacional: DetalheOperacional,
   financeiro: DetalheFinanceiro,
   orcamento: DetalheOrcamento,
+  rh: DetalheRh,
 };
 
 export default function AreaDetalhe({ area }) {

@@ -12,6 +12,7 @@
   --purple: #a855f7;
   --red: #f87171;
   --rose: #fb7185;
+  --indigo: #818cf8;
 }
 
 * {
@@ -152,6 +153,7 @@ body {
 .card-value.purple { color: var(--purple); }
 .card-value.red { color: var(--red); }
 .card-value.rose { color: var(--rose); }
+.card-value.indigo { color: var(--indigo); }
 
 .card-meta {
   margin-top: 8px;
