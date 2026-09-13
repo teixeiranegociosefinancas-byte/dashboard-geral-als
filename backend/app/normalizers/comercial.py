@@ -69,6 +69,8 @@ def normalize_comercial(
     propostas_arquivos: list[dict] | None = None,
     vendedor_rows: list[dict] | None = None,
     vendedor_mensal_rows: list[dict] | None = None,
+    periodo_servico: str | None = None,
+    periodo_vendedor: str | None = None,
 ) -> dict:
     por_servico = defaultdict(float)
     por_vendedor = defaultdict(lambda: {"faturamento": 0.0, "meta": 0.0})
@@ -140,6 +142,8 @@ def normalize_comercial(
         "faturamento_total": round(faturamento_total, 2),
         "meta_total": round(meta_total, 2),
         "atingimento_pct": round(100 * faturamento_total / meta_total, 1) if meta_total else None,
+        "periodo_servico": periodo_servico,
+        "periodo_vendedor": periodo_vendedor,
         "por_servico": {k: round(v, 2) for k, v in sorted(por_servico.items(), key=lambda kv: -kv[1])},
         "por_vendedor": {
             k: {

@@ -23,7 +23,10 @@ function DetalheComercial({ d }) {
         </div>
       </div>
 
-      <div className="section-title">Faturamento por serviço</div>
+      <div className="section-title">
+        Faturamento por serviço
+        {d.periodo_servico && <span style={{ fontWeight: 400, fontSize: "0.85em", opacity: 0.7 }}> · período: {d.periodo_servico}</span>}
+      </div>
       <table>
         <thead>
           <tr><th>Serviço</th><th>Faturamento</th></tr>
@@ -35,7 +38,10 @@ function DetalheComercial({ d }) {
         </tbody>
       </table>
 
-      <div className="section-title">Faturamento por vendedor</div>
+      <div className="section-title">
+        Faturamento por vendedor
+        {d.periodo_vendedor && <span style={{ fontWeight: 400, fontSize: "0.85em", opacity: 0.7 }}> · período: {d.periodo_vendedor}</span>}
+      </div>
       <table>
         <thead>
           <tr>
@@ -94,6 +100,14 @@ function DetalheFrota({ d }) {
           <div className="card-label">Veículos</div>
           <div className="card-value amber">{fmtNumero(d.total_veiculos)}</div>
         </div>
+        <div className="card">
+          <div className="card-label">Valor gasto (combustível)</div>
+          <div className="card-value amber">{d.valor_gasto_total !== null && d.valor_gasto_total !== undefined ? fmtMoeda(d.valor_gasto_total) : "—"}</div>
+        </div>
+        <div className="card">
+          <div className="card-label">Preço médio por litro</div>
+          <div className="card-value amber">{d.preco_medio_litro_frota !== null && d.preco_medio_litro_frota !== undefined ? `R$ ${fmtNumero(d.preco_medio_litro_frota, 3)}` : "—"}</div>
+        </div>
       </div>
 
       <div className="section-title">Por veículo</div>
@@ -101,7 +115,7 @@ function DetalheFrota({ d }) {
         <thead>
           <tr>
             <th>Placa</th><th>Modelo</th><th>Km/L</th><th>Km percorrido</th><th>Litros</th>
-            <th>Abastecimentos</th><th>Saltos suspeitos</th>
+            <th>Valor gasto</th><th>R$/km</th><th>Abastecimentos</th><th>Saltos suspeitos</th>
           </tr>
         </thead>
         <tbody>
@@ -112,6 +126,8 @@ function DetalheFrota({ d }) {
               <td>{v.km_por_litro !== null ? fmtNumero(v.km_por_litro, 2) : "—"}</td>
               <td>{fmtNumero(v.km_percorrido_estimado)}</td>
               <td>{fmtNumero(v.litros_total)}</td>
+              <td>{v.valor_gasto_total !== null && v.valor_gasto_total !== undefined ? fmtMoeda(v.valor_gasto_total) : "—"}</td>
+              <td>{v.custo_por_km !== null && v.custo_por_km !== undefined ? `R$ ${fmtNumero(v.custo_por_km, 2)}` : "—"}</td>
               <td>{v.abastecimentos}</td>
               <td>{v.saltos_suspeitos.length > 0 ? <span className="badge warn">{v.saltos_suspeitos.length} suspeito(s)</span> : "—"}</td>
             </tr>
@@ -241,11 +257,106 @@ function DetalheFinanceiro({ d }) {
   );
 }
 
+function DetalheOrcamento({ d }) {
+  const serie = d.serie_mensal || [];
+  const proximo = d.projecao_proximo_mes;
+  return (
+    <>
+      <div className="grid">
+        {proximo && (
+          <>
+            <div className="card">
+              <div className="card-label">Lucro líquido projetado ({proximo.period})</div>
+              <div className={`card-value ${proximo.lucro_liquido < 0 ? "red" : "rose"}`}>{fmtMoeda(proximo.lucro_liquido)}</div>
+            </div>
+            <div className="card">
+              <div className="card-label">Receita bruta projetada ({proximo.period})</div>
+              <div className="card-value rose">{fmtMoeda(proximo.receita_bruta)}</div>
+            </div>
+          </>
+        )}
+      </div>
+
+      <div className="section-title">Lucro líquido — orçamento estimado x realizado</div>
+      <table>
+        <thead>
+          <tr><th>Mês</th><th>Realizado</th><th>Orçamento estimado</th><th>Variação (R$)</th><th>Variação (%)</th></tr>
+        </thead>
+        <tbody>
+          {serie.map((m) => {
+            const v = m.lucro_liquido;
+            return (
+              <tr key={m.period}>
+                <td>{m.period}</td>
+                <td>{fmtMoeda(v.realizado)}</td>
+                <td>{v.orcamento_estimado !== null ? fmtMoeda(v.orcamento_estimado) : "— (sem histórico anterior)"}</td>
+                <td>{v.variacao_valor !== null ? fmtMoeda(v.variacao_valor) : "—"}</td>
+                <td>{v.variacao_pct !== null ? fmtPct(v.variacao_pct) : "—"}</td>
+              </tr>
+            );
+          })}
+        </tbody>
+      </table>
+
+      <div className="section-title">Receita bruta — orçamento estimado x realizado</div>
+      <table>
+        <thead>
+          <tr><th>Mês</th><th>Realizado</th><th>Orçamento estimado</th><th>Variação (R$)</th><th>Variação (%)</th></tr>
+        </thead>
+        <tbody>
+          {serie.map((m) => {
+            const v = m.receita_bruta;
+            return (
+              <tr key={m.period}>
+                <td>{m.period}</td>
+                <td>{fmtMoeda(v.realizado)}</td>
+                <td>{v.orcamento_estimado !== null ? fmtMoeda(v.orcamento_estimado) : "— (sem histórico anterior)"}</td>
+                <td>{v.variacao_valor !== null ? fmtMoeda(v.variacao_valor) : "—"}</td>
+                <td>{v.variacao_pct !== null ? fmtPct(v.variacao_pct) : "—"}</td>
+              </tr>
+            );
+          })}
+        </tbody>
+      </table>
+
+      <div className="section-title">Despesas — realizado x estimado</div>
+      <table>
+        <thead>
+          <tr>
+            <th>Mês</th>
+            <th>Pessoal (realizado)</th><th>Pessoal (estimado)</th>
+            <th>Gerais (realizado)</th><th>Gerais (estimado)</th>
+            <th>Bancárias (realizado)</th><th>Bancárias (estimado)</th>
+          </tr>
+        </thead>
+        <tbody>
+          {serie.map((m) => (
+            <tr key={m.period}>
+              <td>{m.period}</td>
+              <td>{fmtMoeda(m.despesas_pessoal.realizado)}</td>
+              <td>{m.despesas_pessoal.orcamento_estimado !== null ? fmtMoeda(m.despesas_pessoal.orcamento_estimado) : "—"}</td>
+              <td>{fmtMoeda(m.despesas_gerais.realizado)}</td>
+              <td>{m.despesas_gerais.orcamento_estimado !== null ? fmtMoeda(m.despesas_gerais.orcamento_estimado) : "—"}</td>
+              <td>{fmtMoeda(m.despesas_bancarias.realizado)}</td>
+              <td>{m.despesas_bancarias.orcamento_estimado !== null ? fmtMoeda(m.despesas_bancarias.orcamento_estimado) : "—"}</td>
+            </tr>
+          ))}
+        </tbody>
+      </table>
+
+      <p className="page-subtitle" style={{ marginTop: "0.5rem" }}>
+        {d.aviso}
+      </p>
+    </>
+  );
+}
+
 const RENDERERS = {
   comercial: DetalheComercial,
   frota: DetalheFrota,
   operacional: DetalheOperacional,
   financeiro: DetalheFinanceiro,
+  orcamento: DetalheOrcamento,
 };
 
 export default function AreaDetalhe({ area }) {
@@ -267,6 +378,7 @@ export default function AreaDetalhe({ area }) {
       <h1 className="page-title">{areaLabel(area)}</h1>
       <p className="page-subtitle">
         {doc?.ingested_at ? `Última atualização: ${fmtData(doc.ingested_at)} (${doc.source === "claude" ? "via Claude" : "upload manual"})` : "Nenhum dado ainda"}
+        {doc?.period ? ` · período de apuração: ${doc.period}` : ""}
       </p>
 
       {erro && <div className="aviso">Não consegui buscar os dados do backend ({erro}).</div>}

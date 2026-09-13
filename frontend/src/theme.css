@@ -11,6 +11,7 @@
   --emerald: #10b981;
   --purple: #a855f7;
   --red: #f87171;
+  --rose: #fb7185;
 }
 
 * {
@@ -150,6 +151,7 @@ body {
 .card-value.emerald { color: var(--emerald); }
 .card-value.purple { color: var(--purple); }
 .card-value.red { color: var(--red); }
+.card-value.rose { color: var(--rose); }
 
 .card-meta {
   margin-top: 8px;

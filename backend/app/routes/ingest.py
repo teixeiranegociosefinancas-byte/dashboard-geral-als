@@ -50,6 +50,8 @@ def _normalizar(payload: IngestPayload, normalize):
             propostas_arquivos=(payload.extra or {}).get("propostas_arquivos"),
             vendedor_rows=(payload.extra or {}).get("vendedor_rows"),
             vendedor_mensal_rows=(payload.extra or {}).get("vendedor_mensal_rows"),
+            periodo_servico=(payload.extra or {}).get("periodo_servico"),
+            periodo_vendedor=(payload.extra or {}).get("periodo_vendedor"),
         )
     elif payload.area == "financeiro":
         resultado = normalize(payload.rows, recebimento=(payload.extra or {}).get("recebimento"))

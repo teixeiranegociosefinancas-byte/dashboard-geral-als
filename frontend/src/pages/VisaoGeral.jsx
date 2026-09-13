@@ -88,6 +88,29 @@ function CardsFinanceiro({ doc, onClick }) {
   );
 }
 
+function CardsOrcamento({ doc, onClick }) {
+  const d = doc?.data;
+  const proximo = d?.projecao_proximo_mes;
+  const lucroNegativo = proximo && proximo.lucro_liquido !== null && proximo.lucro_liquido < 0;
+  return (
+    <>
+      <KpiCard
+        label="Lucro líquido projetado (próx. mês)"
+        value={proximo ? fmtMoeda(proximo.lucro_liquido) : "sem dados"}
+        color={lucroNegativo ? "red" : "rose"}
+        meta={doc ? `Atualizado em ${fmtData(doc.ingested_at)} — estimativa, não é meta da diretoria` : "peça pro Claude atualizar"}
+        onClick={onClick}
+      />
+      <KpiCard
+        label="Receita bruta projetada (próx. mês)"
+        value={proximo ? fmtMoeda(proximo.receita_bruta) : "—"}
+        color="rose"
+        onClick={onClick}
+      />
+    </>
+  );
+}
+
 export default function VisaoGeral({ onNavigate }) {
   const [dados, setDados] = useState(null);
   const [erro, setErro] = useState(null);
@@ -101,7 +124,7 @@ export default function VisaoGeral({ onNavigate }) {
   return (
     <div>
       <h1 className="page-title">Visão Geral</h1>
-      <p className="page-subtitle">Panorama consolidado — Comercial, Frota, Operacional e Financeiro</p>
+      <p className="page-subtitle">Panorama consolidado — Comercial, Frota, Operacional, Financeiro e Orçamento</p>
 
       {erro && (
         <div className="aviso">
@@ -118,6 +141,7 @@ export default function VisaoGeral({ onNavigate }) {
           <CardsFrota doc={dados.frota} onClick={() => onNavigate("frota")} />
           <CardsOperacional doc={dados.operacional} onClick={() => onNavigate("operacional")} />
           <CardsFinanceiro doc={dados.financeiro} onClick={() => onNavigate("financeiro")} />
+          <CardsOrcamento doc={dados.orcamento} onClick={() => onNavigate("orcamento")} />
         </div>
       )}
     </div>
