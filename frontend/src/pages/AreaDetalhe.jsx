@@ -212,6 +212,22 @@ function DetalheFinanceiro({ d }) {
           <div className="card-label">Margem líquida</div>
           <div className="card-value purple">{d.margem_liquida_acumulada_pct !== null ? fmtPct(d.margem_liquida_acumulada_pct) : "—"}</div>
         </div>
+        <div className="card">
+          <div className="card-label">ROI (Lucro Líquido ÷ Receita Líquida)</div>
+          <div className="card-value purple">{d.roi_pct_acumulado !== null ? fmtPct(d.roi_pct_acumulado) : "—"}</div>
+        </div>
+        <div className="card">
+          <div className="card-label">EBITDA acumulado</div>
+          <div className="card-value purple">{d.ebitda_acumulado !== null && d.ebitda_acumulado !== undefined ? fmtMoeda(d.ebitda_acumulado) : "—"}</div>
+        </div>
+        <div className="card">
+          <div className="card-label">EBITDA / Receita líquida</div>
+          <div className="card-value purple">
+            {d.ebitda_pct_receita_liquida_acumulado !== null && d.ebitda_pct_receita_liquida_acumulado !== undefined
+              ? fmtPct(d.ebitda_pct_receita_liquida_acumulado)
+              : "—"}
+          </div>
+        </div>
         {d.pmr_dias !== undefined && (
           <div className="card">
             <div className="card-label">Prazo médio de recebimento</div>
@@ -237,7 +253,7 @@ function DetalheFinanceiro({ d }) {
         <thead>
           <tr>
             <th>Mês</th><th>Receita bruta</th><th>Despesas pessoal</th><th>Despesas gerais</th>
-            <th>Lucro líquido</th><th>Margem</th>
+            <th>Lucro líquido</th><th>Margem</th><th>ROI</th><th>EBITDA</th><th>EBITDA / Receita líq.</th>
           </tr>
         </thead>
         <tbody>
@@ -249,10 +265,17 @@ function DetalheFinanceiro({ d }) {
               <td>{fmtMoeda(m.despesas_gerais)}</td>
               <td className={m.lucro_liquido < 0 ? "" : ""}>{fmtMoeda(m.lucro_liquido)}</td>
               <td>{m.margem_liquida_pct !== null ? fmtPct(m.margem_liquida_pct) : "—"}</td>
+              <td>{m.roi_pct !== null && m.roi_pct !== undefined ? fmtPct(m.roi_pct) : "—"}</td>
+              <td>{m.ebitda !== null && m.ebitda !== undefined ? fmtMoeda(m.ebitda) : "—"}</td>
+              <td>{m.ebitda_pct_receita_liquida !== null && m.ebitda_pct_receita_liquida !== undefined ? fmtPct(m.ebitda_pct_receita_liquida) : "—"}</td>
             </tr>
           ))}
         </tbody>
       </table>
+
+      {d.aviso_roi_ebitda && (
+        <p className="page-subtitle" style={{ marginTop: "0.5rem" }}>{d.aviso_roi_ebitda}</p>
+      )}
     </>
   );
 }
