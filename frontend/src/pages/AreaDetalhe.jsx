@@ -553,6 +553,55 @@ function DetalheOrcamento({ d }) {
   );
 }
 
+function DetalheCapex({ d }) {
+  return (
+    <>
+      <div className="grid">
+        <div className="card">
+          <div className="card-label">CAPEX — aquisição de ativo fixo capitalizada</div>
+          <div className="card-value orange">{fmtMoeda(d.capex_capitalizado)}</div>
+        </div>
+        <div className="card">
+          <div className="card-label">Participação em consórcios (não capitalizado)</div>
+          <div className="card-value orange">{fmtMoeda(d.consorcio_nao_capitalizado)}</div>
+        </div>
+      </div>
+
+      <details className="explicacoes">
+        <summary>Explicações</summary>
+
+        <div className="explicacoes-item">
+          <h4>Por que o CAPEX está zerado</h4>
+          <p>
+            <strong>Fatos:</strong> no balancete oficial da ALS (sistema TRACT Contabilidade, assinado digitalmente,
+            período 01/01/2025 a 31/12/2025 — o único balancete fechado disponível até agora), a conta Imobilizado e
+            todas as suas subcontas (Edifícios, Máquinas e Equipamentos, Móveis, Terrenos, Veículos) tiveram Débito e
+            Crédito iguais a R$0,00 o ano inteiro — nenhuma aquisição de ativo fixo foi lançada contabilmente. A única
+            movimentação ligada a ativo foi R$39.231,91 em "Participação em Consórcios" (parcelas pagas de um
+            consórcio — financiamento pra uma aquisição futura, ainda não é ativo capitalizado). Cruzando com as
+            contas a pagar de 2026 (busca por veículo/caminhão/equipamento/compra/aquisição, mais os 25 maiores
+            lançamentos do ano), não apareceu nenhuma compra de ativo fixo — os maiores valores são empréstimo de
+            sócio, combustível, salário e <strong>locação</strong> de caminhão/sugador/banheiro químico, inclusive da
+            Prime (empresa do mesmo grupo).
+          </p>
+          <p>
+            <strong>Análise:</strong> os dois fatos acima convergem: não é falta de dado, é um resultado real — a ALS
+            não capitalizou nenhuma aquisição de ativo fixo no período coberto. O jeito que a empresa expande
+            capacidade operacional é alugando caminhões e equipamentos de terceiros, não comprando — coerente com o
+            quadro já visto no Balanço 2025 (patrimônio líquido quase zerado, endividamento alto, pouca folga de
+            caixa pra investimento de capital). Ainda não existe um balancete fechado de 2026 pra confirmar se esse
+            padrão continua neste ano — este número será atualizado assim que a contabilidade fechar um novo
+            balancete. Este campo não foi reautorizado/repopulado nesta rodada (só recriado na tela) — continua
+            usando o mesmo balancete de 2025 até que o usuário autorize uma nova leitura do Balancete/Balanço.
+          </p>
+        </div>
+      </details>
+
+      <p className="page-subtitle" style={{ marginTop: "0.5rem" }}>{d.aviso}</p>
+    </>
+  );
+}
+
 function DetalheRh({ d }) {
   const serie = d.serie_mensal || [];
   const aso = d.aso;
@@ -656,6 +705,7 @@ const RENDERERS = {
   orcamento: DetalheOrcamento,
   rh: DetalheRh,
   opex: DetalheOpex,
+  capex: DetalheCapex,
 };
 
 export default function AreaDetalhe({ area }) {

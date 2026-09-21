@@ -45,21 +45,31 @@ def _normalizar(payload: IngestPayload, normalize):
     if payload.area == "frota":
         resultado = normalize(payload.rows, cadastro=(payload.extra or {}).get("cadastro"))
     elif payload.area == "comercial":
+        _extra_comercial = payload.extra or {}
         resultado = normalize(
             payload.rows,
-            propostas_arquivos=(payload.extra or {}).get("propostas_arquivos"),
-            vendedor_rows=(payload.extra or {}).get("vendedor_rows"),
-            vendedor_mensal_rows=(payload.extra or {}).get("vendedor_mensal_rows"),
-            periodo_servico=(payload.extra or {}).get("periodo_servico"),
-            periodo_vendedor=(payload.extra or {}).get("periodo_vendedor"),
+            propostas_arquivos=_extra_comercial.get("propostas_arquivos"),
+            vendedor_rows=_extra_comercial.get("vendedor_rows"),
+            vendedor_mensal_rows=_extra_comercial.get("vendedor_mensal_rows"),
+            periodo_servico=_extra_comercial.get("periodo_servico"),
+            periodo_vendedor=_extra_comercial.get("periodo_vendedor"),
+            receita_bruta_oficial=_extra_comercial.get("receita_bruta_oficial"),
+            meta_mensal=_extra_comercial.get("meta_mensal", 759_930.39),
         )
     elif payload.area == "financeiro":
-        resultado = normalize(payload.rows, recebimento=(payload.extra or {}).get("recebimento"))
-    elif payload.area == "orcamento":
         resultado = normalize(
             payload.rows,
-            contas_detalhadas=(payload.extra or {}).get("contas_detalhadas"),
-            contratos_novos=(payload.extra or {}).get("contratos_novos"),
+            recebimento=(payload.extra or {}).get("recebimento"),
+            despesas_gerais_contas=(payload.extra or {}).get("despesas_gerais_contas"),
+        )
+    elif payload.area == "orcamento":
+        _extra_orcamento = payload.extra or {}
+        resultado = normalize(
+            payload.rows,
+            contas_detalhadas=_extra_orcamento.get("contas_detalhadas"),
+            contratos_novos=_extra_orcamento.get("contratos_novos"),
+            ponto_equilibrio_seguro=_extra_orcamento.get("ponto_equilibrio_seguro"),
+            ponto_equilibrio_seguro_period=_extra_orcamento.get("ponto_equilibrio_seguro_period"),
         )
     elif payload.area == "rh":
         resultado = normalize(payload.rows, aso_funcionarios=(payload.extra or {}).get("aso_funcionarios"))

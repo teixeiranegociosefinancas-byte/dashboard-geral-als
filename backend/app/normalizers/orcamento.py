@@ -203,6 +203,8 @@ def normalize_orcamento(
     meses: list[dict],
     contas_detalhadas: list[dict] | None = None,
     contratos_novos: list[dict] | None = None,
+    ponto_equilibrio_seguro: float | None = None,
+    ponto_equilibrio_seguro_period: str | None = None,
 ) -> dict:
     meses_ordenados = sorted(meses, key=lambda x: x.get("period", ""))
 
@@ -273,11 +275,47 @@ def normalize_orcamento(
                 "categoria_manutencao": "manutenç" in conta.lower() or "manuten" in conta.lower(),
             }
 
+    # Cenário "+20% sobre o ponto de equilíbrio SEGURO" — método redefinido
+    # pelo usuário em 21/09/2026 depois de ver que a primeira versão (ponto de
+    # equilíbrio pela MÉDIA de custo) dava margem líquida projetada de só
+    # 4,5%, longe do "positivo e confortável" que ele queria. Pedido literal:
+    # "eu só quero que o ponto de equilibro seja positivo... o maior mês de
+    # despesa... você coloca o valor em torno disso". Ou seja: em vez da
+    # média (Custo Fixo ÷ Margem de Contribuição%), o ponto de equilíbrio
+    # agora usado aqui é o PIOR mês real já observado (maior despesa total
+    # mensal do histórico, campo `maior_despesa_mensal_total` calculado em
+    # normalizers/financeiro.py) — uma meta de receita 20% acima desse piso
+    # garante lucro positivo em QUALQUER mês do histórico, não só na média,
+    # porque nenhum mês real teve despesa maior que esse valor.
+    cenario_20pct_sobre_ponto_equilibrio = None
+    if ponto_equilibrio_seguro:
+        receita_projetada = round(ponto_equilibrio_seguro * 1.20, 2)
+        lucro_projetado = round(receita_projetada - ponto_equilibrio_seguro, 2)
+        margem_liquida_projetada_pct = (
+            round(100 * lucro_projetado / receita_projetada, 1) if receita_projetada else None
+        )
+        cenario_20pct_sobre_ponto_equilibrio = {
+            "ponto_equilibrio_seguro_usado": round(ponto_equilibrio_seguro, 2),
+            "ponto_equilibrio_seguro_baseado_no_mes": ponto_equilibrio_seguro_period,
+            "receita_projetada": receita_projetada,
+            "lucro_projetado": lucro_projetado,
+            "margem_liquida_projetada_pct": margem_liquida_projetada_pct,
+            "aviso": (
+                "Ponto de equilíbrio 'seguro' pensado pra garantir lucro positivo mesmo no "
+                "mês mais caro do ano (não é a média, é pensado pra cobrir o pior mês) — "
+                f"referência: {ponto_equilibrio_seguro_period or 'não informada'}. Receita "
+                "projetada = esse valor + 20%. Lucro projetado = receita projetada − o "
+                "mesmo ponto de equilíbrio seguro (assume que a despesa não ultrapassa esse "
+                "valor de referência)."
+            ),
+        }
+
     return {
         "serie_mensal": serie,
         "projecao_proximo_mes": projecao_proximo_mes,
         "detalhamento_contas": detalhamento_contas,
         "contratos_novos_considerados": contratos_considerados_por_mes,
+        "cenario_20pct_sobre_ponto_equilibrio": cenario_20pct_sobre_ponto_equilibrio,
         "metodo": "media_acumulada",
         "aviso": (
             "Orçamento ESTIMADO, não é meta oficial da diretoria — não existe hoje uma "

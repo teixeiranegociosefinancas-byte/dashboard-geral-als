@@ -64,6 +64,24 @@ def _progresso_meta(faturamento_mes: float) -> dict:
     return {"proxima_faixa_limite": None, "falta_valor": 0.0, "falta_pct": 0.0}
 
 
+MOTIVO_OUTROS = (
+    "por_servico soma só as contas de serviço já mapeadas na Comissão de OS/DRE "
+    "(10 categorias). A Receita Bruta oficial do DRE inclui outras contas que não "
+    "têm mapeamento de serviço linha a linha (ex: conta 557 'Hidrojato' em julho, "
+    "ajuste de 'Outras Receitas' em janeiro) — por isso 'Outros/Não categorizado' "
+    "existe: é a diferença entre a Receita Bruta oficial e a soma das 10 categorias "
+    "conhecidas, pra faturamento_total bater exatamente com o Financeiro. Achado "
+    "real 2026-09-18: diferença de R$273.529,95 no acumulado jan-jul/2026, "
+    "confirmada linha a linha contra o DRE (não é dado desatualizado)."
+)
+
+META_MENSAL_BASE = (
+    "R$759.930,39/mês — média do faturamento real dos últimos 3 meses fechados "
+    "disponíveis (mai/jun/jul de 2026), proposta pelo Claude com base no "
+    "histórico financeiro e aprovada pelo usuário em 2026-09-18."
+)
+
+
 def normalize_comercial(
     faturamento_linhas: list[dict],
     propostas_arquivos: list[dict] | None = None,
@@ -71,6 +89,8 @@ def normalize_comercial(
     vendedor_mensal_rows: list[dict] | None = None,
     periodo_servico: str | None = None,
     periodo_vendedor: str | None = None,
+    receita_bruta_oficial: float | None = None,
+    meta_mensal: float | None = 759_930.39,
 ) -> dict:
     por_servico = defaultdict(float)
     por_vendedor = defaultdict(lambda: {"faturamento": 0.0, "meta": 0.0})
@@ -91,6 +111,15 @@ def normalize_comercial(
 
         faturamento_total += valor
         meta_total += meta
+
+    # "Outros/Não categorizado": reconcilia com a Receita Bruta oficial do DRE
+    # (ver MOTIVO_OUTROS) — só é aplicado quando o valor oficial é informado.
+    diferenca_outros = None
+    if receita_bruta_oficial is not None:
+        diferenca_outros = round(float(receita_bruta_oficial), 2) - round(faturamento_total, 2)
+        if abs(diferenca_outros) > 0.01:
+            por_servico["Outros/Não categorizado"] += diferenca_outros
+            faturamento_total += diferenca_outros
 
     # Faturamento por vendedor, de uma base separada (Comissão de OS) — não
     # entra em faturamento_total/por_servico, só alimenta a tabela por vendedor.
@@ -142,6 +171,11 @@ def normalize_comercial(
         "faturamento_total": round(faturamento_total, 2),
         "meta_total": round(meta_total, 2),
         "atingimento_pct": round(100 * faturamento_total / meta_total, 1) if meta_total else None,
+        "meta_mensal": round(meta_mensal, 2) if meta_mensal is not None else None,
+        "meta_mensal_base": META_MENSAL_BASE if meta_mensal is not None else None,
+        "receita_bruta_oficial": round(float(receita_bruta_oficial), 2) if receita_bruta_oficial is not None else None,
+        "outros_nao_categorizado": round(diferenca_outros, 2) if diferenca_outros is not None else None,
+        "motivo_outros_nao_categorizado": MOTIVO_OUTROS if diferenca_outros is not None else None,
         "periodo_servico": periodo_servico,
         "periodo_vendedor": periodo_vendedor,
         "por_servico": {k: round(v, 2) for k, v in sorted(por_servico.items(), key=lambda kv: -kv[1])},

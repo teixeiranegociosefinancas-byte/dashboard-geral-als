@@ -82,6 +82,7 @@ def normalize_frota(lancamentos: list[dict], cadastro: list[dict] | None = None)
     total_litros = 0.0
     total_km = 0.0
     total_valor_gasto = 0.0
+    todas_as_datas = [l["data"] for lancs in por_placa.values() for l in lancs]
 
     # Acima disso o salto entre dois abastecimentos consecutivos é reportado
     # como suspeito (mas não descartado) — ainda entra na conta de km/L, só
@@ -149,6 +150,8 @@ def normalize_frota(lancamentos: list[dict], cadastro: list[dict] | None = None)
     return {
         "veiculos": resultado_por_veiculo,
         "total_veiculos": len(resultado_por_veiculo),
+        "periodo_apuracao_inicio": min(todas_as_datas).strftime("%Y-%m-%d") if todas_as_datas else None,
+        "periodo_apuracao_fim": max(todas_as_datas).strftime("%Y-%m-%d") if todas_as_datas else None,
         "total_litros": round(total_litros, 1),
         "km_por_litro_frota": round(total_km / total_litros, 2) if total_litros else None,
         "valor_gasto_total": round(total_valor_gasto, 2) if total_valor_gasto else None,
