@@ -1,7 +1,7 @@
 import { useEffect, useState } from "react";
 import { fetchLatest } from "../api.js";
 import { areaLabel } from "../areas.js";
-import { fmtMoeda, fmtNumero, fmtPct, fmtData } from "../format.js";
+import { fmtMoeda, fmtNumero, fmtPct, fmtData, fmtDataSimples } from "../format.js";
 
 function DetalheComercial({ d }) {
   const servicos = Object.entries(d.por_servico || {});
@@ -13,15 +13,30 @@ function DetalheComercial({ d }) {
           <div className="card-label">Faturamento total</div>
           <div className="card-value cyan">{fmtMoeda(d.faturamento_total)}</div>
         </div>
+        {d.meta_mensal !== null && d.meta_mensal !== undefined && (
+          <div className="card">
+            <div className="card-label">Meta mensal</div>
+            <div className="card-value cyan">{fmtMoeda(d.meta_mensal)}</div>
+          </div>
+        )}
         <div className="card">
-          <div className="card-label">Meta total</div>
+          <div className="card-label">Meta total (por serviço)</div>
           <div className="card-value cyan">{fmtMoeda(d.meta_total)}</div>
         </div>
         <div className="card">
-          <div className="card-label">Atingimento</div>
+          <div className="card-label">Atingimento (meta por serviço)</div>
           <div className="card-value cyan">{d.atingimento_pct !== null ? fmtPct(d.atingimento_pct) : "—"}</div>
         </div>
       </div>
+      {d.meta_mensal_base && (
+        <p className="page-subtitle" style={{ marginTop: "-0.5rem", marginBottom: "0.75rem" }}>{d.meta_mensal_base}</p>
+      )}
+      {d.outros_nao_categorizado !== null && d.outros_nao_categorizado !== undefined && (
+        <div className="aviso" style={{ marginBottom: "1rem" }}>
+          Faturamento reconciliado com a Receita Bruta oficial do Financeiro ({fmtMoeda(d.receita_bruta_oficial)}):
+          {" "}"Outros/Não categorizado" = {fmtMoeda(d.outros_nao_categorizado)}. {d.motivo_outros_nao_categorizado}
+        </div>
+      )}
 
       <div className="section-title">
         Faturamento por serviço
@@ -108,6 +123,14 @@ function DetalheFrota({ d }) {
           <div className="card-label">Preço médio por litro</div>
           <div className="card-value amber">{d.preco_medio_litro_frota !== null && d.preco_medio_litro_frota !== undefined ? `R$ ${fmtNumero(d.preco_medio_litro_frota, 3)}` : "—"}</div>
         </div>
+        {d.periodo_apuracao_inicio && d.periodo_apuracao_fim && (
+          <div className="card">
+            <div className="card-label">Período de apuração</div>
+            <div className="card-value amber" style={{ fontSize: "1.3rem" }}>
+              {fmtDataSimples(d.periodo_apuracao_inicio)} – {fmtDataSimples(d.periodo_apuracao_fim)}
+            </div>
+          </div>
+        )}
       </div>
 
       <div className="section-title">Por veículo</div>
@@ -248,6 +271,37 @@ function DetalheFinanceiro({ d }) {
         )}
       </div>
 
+      {d.margem_contribuicao_pct !== null && d.margem_contribuicao_pct !== undefined && (
+        <>
+          <div className="section-title">Margem de contribuição / ponto de equilíbrio</div>
+          <div className="grid">
+            <div className="card">
+              <div className="card-label">Margem de contribuição</div>
+              <div className="card-value purple">{fmtPct(d.margem_contribuicao_pct)}</div>
+            </div>
+            <div className="card">
+              <div className="card-label">Custo fixo acumulado</div>
+              <div className="card-value purple">{fmtMoeda(d.custo_fixo_acumulado)}</div>
+            </div>
+            <div className="card">
+              <div className="card-label">Custo variável acumulado</div>
+              <div className="card-value purple">{fmtMoeda(d.custo_variavel_acumulado)}</div>
+            </div>
+            <div className="card">
+              <div className="card-label">Ponto de equilíbrio (médio mensal)</div>
+              <div className="card-value purple">{fmtMoeda(d.ponto_equilibrio_mensal_medio)}</div>
+            </div>
+            {d.maior_despesa_mensal_total !== null && d.maior_despesa_mensal_total !== undefined && (
+              <div className="card">
+                <div className="card-label">Maior despesa mensal (pior mês real{d.maior_despesa_mensal_period ? `, ${d.maior_despesa_mensal_period}` : ""})</div>
+                <div className="card-value purple">{fmtMoeda(d.maior_despesa_mensal_total)}</div>
+              </div>
+            )}
+          </div>
+          {d.aviso_cvp && <p className="page-subtitle" style={{ marginTop: "-0.5rem", marginBottom: "1rem" }}>{d.aviso_cvp}</p>}
+        </>
+      )}
+
       <div className="section-title">Série mensal</div>
       <table>
         <thead>
@@ -351,6 +405,44 @@ function DetalheOrcamento({ d }) {
         )}
       </div>
 
+      {d.cenario_20pct_sobre_ponto_equilibrio && (
+        <>
+          <div className="section-title">Cenário — +20% sobre o ponto de equilíbrio seguro</div>
+          <div className="grid">
+            <div className="card">
+              <div className="card-label">Ponto de equilíbrio seguro usado</div>
+              <div className="card-value rose">{fmtMoeda(d.cenario_20pct_sobre_ponto_equilibrio.ponto_equilibrio_seguro_usado)}</div>
+            </div>
+            <div className="card">
+              <div className="card-label">Receita projetada</div>
+              <div className="card-value rose">{fmtMoeda(d.cenario_20pct_sobre_ponto_equilibrio.receita_projetada)}</div>
+            </div>
+            <div className="card">
+              <div className="card-label">Lucro projetado</div>
+              <div className="card-value rose">{fmtMoeda(d.cenario_20pct_sobre_ponto_equilibrio.lucro_projetado)}</div>
+            </div>
+            <div className="card">
+              <div className="card-label">Margem líquida projetada</div>
+              <div className="card-value rose">
+                {d.cenario_20pct_sobre_ponto_equilibrio.margem_liquida_projetada_pct !== null
+                  ? fmtPct(d.cenario_20pct_sobre_ponto_equilibrio.margem_liquida_projetada_pct)
+                  : "—"}
+              </div>
+            </div>
+          </div>
+          {d.cenario_20pct_sobre_ponto_equilibrio.ponto_equilibrio_seguro_baseado_no_mes && (
+            <p className="page-subtitle" style={{ marginTop: "-0.5rem", marginBottom: "0.75rem" }}>
+              Referência: {d.cenario_20pct_sobre_ponto_equilibrio.ponto_equilibrio_seguro_baseado_no_mes}
+            </p>
+          )}
+          {d.cenario_20pct_sobre_ponto_equilibrio.aviso && (
+            <p className="page-subtitle" style={{ marginTop: 0, marginBottom: "1rem" }}>
+              {d.cenario_20pct_sobre_ponto_equilibrio.aviso}
+            </p>
+          )}
+        </>
+      )}
+
       <div className="section-title">Lucro líquido — orçamento estimado x realizado</div>
       <table>
         <thead>
@@ -423,62 +515,68 @@ function DetalheOrcamento({ d }) {
       )}
 
       {(() => {
-        const contasGerais = d.detalhamento_contas?.despesas_gerais || {};
-        const manutencaoEntries = Object.entries(contasGerais).filter(([, c]) => c.categoria_manutencao);
-        const outrasEntries = Object.entries(contasGerais).filter(([, c]) => !c.categoria_manutencao);
-        return (
-          <>
-            {manutencaoEntries.length > 0 && (
-              <>
-                <div className="section-title">Manutenção — orçamento estimado x realizado (por conta)</div>
-                <table>
-                  <thead>
-                    <tr><th>Conta</th><th>Mês</th><th>Realizado</th><th>Orçamento estimado</th><th>Variação (%)</th></tr>
-                  </thead>
-                  <tbody>
-                    {manutencaoEntries.flatMap(([conta, c]) =>
-                      c.serie.map((m) => (
-                        <tr key={`${conta}-${m.period}`}>
-                          <td>{conta}</td>
-                          <td>{m.period}</td>
-                          <td>{fmtMoeda(m.realizado)}</td>
-                          <td>{m.orcamento_estimado !== null ? fmtMoeda(m.orcamento_estimado) : "—"}</td>
-                          <td>{m.variacao_pct !== null ? fmtPct(m.variacao_pct) : "—"}</td>
-                        </tr>
-                      ))
-                    )}
-                  </tbody>
-                </table>
-              </>
-            )}
+        // detalhamento_contas vem chaveado pelo texto exato da categoria (ex:
+        // "Despesas Gerais", "Despesas com Pessoal") — iterar por todas as
+        // categorias presentes, não só uma fixa, pra funcionar com qualquer
+        // categoria nova que o Claude adicionar no futuro.
+        const categorias = d.detalhamento_contas || {};
+        return Object.entries(categorias).map(([categoria, contas]) => {
+          const manutencaoEntries = Object.entries(contas).filter(([, c]) => c.categoria_manutencao);
+          const outrasEntries = Object.entries(contas).filter(([, c]) => !c.categoria_manutencao);
+          return (
+            <div key={categoria}>
+              {manutencaoEntries.length > 0 && (
+                <>
+                  <div className="section-title">{categoria} — manutenção — orçamento estimado x realizado (por conta)</div>
+                  <table>
+                    <thead>
+                      <tr><th>Conta</th><th>Mês</th><th>Realizado</th><th>Orçamento estimado</th><th>Variação (%)</th></tr>
+                    </thead>
+                    <tbody>
+                      {manutencaoEntries.flatMap(([conta, c]) =>
+                        c.serie.map((m) => (
+                          <tr key={`${conta}-${m.period}`}>
+                            <td>{conta}</td>
+                            <td>{m.period}</td>
+                            <td>{fmtMoeda(m.realizado)}</td>
+                            <td>{m.orcamento_estimado !== null ? fmtMoeda(m.orcamento_estimado) : "—"}</td>
+                            <td>{m.variacao_pct !== null ? fmtPct(m.variacao_pct) : "—"}</td>
+                          </tr>
+                        ))
+                      )}
+                    </tbody>
+                  </table>
+                </>
+              )}
 
-            {outrasEntries.length > 0 && (
-              <>
-                <div className="section-title">Despesas gerais — detalhamento por conta (mês mais recente)</div>
-                <table>
-                  <thead>
-                    <tr><th>Conta</th><th>Mês</th><th>Realizado</th><th>Orçamento estimado</th><th>Variação (%)</th><th>Projeção próx. mês</th></tr>
-                  </thead>
-                  <tbody>
-                    {outrasEntries.map(([conta, c]) => {
-                      const ultimo = c.serie[c.serie.length - 1];
-                      return (
-                        <tr key={conta}>
-                          <td>{conta}</td>
-                          <td>{ultimo.period}</td>
-                          <td>{fmtMoeda(ultimo.realizado)}</td>
-                          <td>{ultimo.orcamento_estimado !== null ? fmtMoeda(ultimo.orcamento_estimado) : "—"}</td>
-                          <td>{ultimo.variacao_pct !== null ? fmtPct(ultimo.variacao_pct) : "—"}</td>
-                          <td>{c.projecao_proximo_mes ? fmtMoeda(c.projecao_proximo_mes.valor) : "—"}</td>
-                        </tr>
-                      );
-                    })}
-                  </tbody>
-                </table>
-              </>
-            )}
-          </>
-        );
+              {outrasEntries.length > 0 && (
+                <>
+                  <div className="section-title">{categoria} — detalhamento por conta (mês mais recente)</div>
+                  <table>
+                    <thead>
+                      <tr><th>Conta</th><th>Mês</th><th>Realizado</th><th>Orçamento estimado</th><th>Variação (%)</th><th>Projeção próx. mês</th></tr>
+                    </thead>
+                    <tbody>
+                      {outrasEntries.map(([conta, c]) => {
+                        const ultimo = c.serie[c.serie.length - 1];
+                        return (
+                          <tr key={conta}>
+                            <td>{conta}</td>
+                            <td>{ultimo.period}</td>
+                            <td>{fmtMoeda(ultimo.realizado)}</td>
+                            <td>{ultimo.orcamento_estimado !== null ? fmtMoeda(ultimo.orcamento_estimado) : "—"}</td>
+                            <td>{ultimo.variacao_pct !== null ? fmtPct(ultimo.variacao_pct) : "—"}</td>
+                            <td>{c.projecao_proximo_mes ? fmtMoeda(c.projecao_proximo_mes.valor) : "—"}</td>
+                          </tr>
+                        );
+                      })}
+                    </tbody>
+                  </table>
+                </>
+              )}
+            </div>
+          );
+        });
       })()}
 
       <div className="section-title">Despesas — realizado x estimado</div>

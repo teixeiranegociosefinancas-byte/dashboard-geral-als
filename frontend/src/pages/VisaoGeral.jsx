@@ -1,7 +1,7 @@
 import { useEffect, useState } from "react";
 import { fetchVisaoGeral } from "../api.js";
 import KpiCard from "../components/KpiCard.jsx";
-import { fmtMoeda, fmtNumero, fmtPct, fmtData } from "../format.js";
+import { fmtMoeda, fmtNumero, fmtPct, fmtData, fmtDataSimples } from "../format.js";
 
 function CardsComercial({ doc, onClick }) {
   const d = doc?.data;
@@ -20,6 +20,14 @@ function CardsComercial({ doc, onClick }) {
         color="cyan"
         onClick={onClick}
       />
+      {d && d.meta_mensal !== null && d.meta_mensal !== undefined && (
+        <KpiCard
+          label="Meta mensal"
+          value={fmtMoeda(d.meta_mensal)}
+          color="cyan"
+          onClick={onClick}
+        />
+      )}
     </>
   );
 }
@@ -41,6 +49,14 @@ function CardsFrota({ doc, onClick }) {
         color="amber"
         onClick={onClick}
       />
+      {d && d.periodo_apuracao_inicio && d.periodo_apuracao_fim && (
+        <KpiCard
+          label="Período de apuração"
+          value={`${fmtDataSimples(d.periodo_apuracao_inicio)} – ${fmtDataSimples(d.periodo_apuracao_fim)}`}
+          color="amber"
+          onClick={onClick}
+        />
+      )}
     </>
   );
 }
@@ -84,6 +100,22 @@ function CardsFinanceiro({ doc, onClick }) {
         color={lucroNegativo ? "red" : "purple"}
         onClick={onClick}
       />
+      {d && d.margem_contribuicao_pct !== null && d.margem_contribuicao_pct !== undefined && (
+        <>
+          <KpiCard
+            label="Margem de contribuição"
+            value={fmtPct(d.margem_contribuicao_pct)}
+            color="purple"
+            onClick={onClick}
+          />
+          <KpiCard
+            label="Ponto de equilíbrio (médio mensal)"
+            value={fmtMoeda(d.ponto_equilibrio_mensal_medio)}
+            color="purple"
+            onClick={onClick}
+          />
+        </>
+      )}
     </>
   );
 }
@@ -107,6 +139,15 @@ function CardsOrcamento({ doc, onClick }) {
         color="rose"
         onClick={onClick}
       />
+      {d && d.cenario_20pct_sobre_ponto_equilibrio && (
+        <KpiCard
+          label="Lucro projetado (cenário +20% s/ ponto de equilíbrio)"
+          value={fmtMoeda(d.cenario_20pct_sobre_ponto_equilibrio.lucro_projetado)}
+          color="rose"
+          meta={`Margem projetada: ${fmtPct(d.cenario_20pct_sobre_ponto_equilibrio.margem_liquida_projetada_pct)}`}
+          onClick={onClick}
+        />
+      )}
     </>
   );
 }
