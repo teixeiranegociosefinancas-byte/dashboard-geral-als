@@ -725,6 +725,16 @@ function DetalheRh({ d }) {
             <div className="card-value indigo">{aso.ok}/{aso.total_funcionarios}</div>
           </div>
         )}
+        <div className="card">
+          <div className="card-label">
+            Absenteísmo{d.taxa_absenteismo_atual_period ? ` (${d.taxa_absenteismo_atual_period})` : ""}
+          </div>
+          <div className="card-value indigo">
+            {d.taxa_absenteismo_atual_pct !== null && d.taxa_absenteismo_atual_pct !== undefined
+              ? fmtPct(d.taxa_absenteismo_atual_pct)
+              : "sem fonte"}
+          </div>
+        </div>
       </div>
 
       <div className="section-title">Headcount, admissões, demitidos e turnover</div>
@@ -760,6 +770,27 @@ function DetalheRh({ d }) {
           ))}
         </tbody>
       </table>
+
+      <div className="section-title">Absenteísmo mensal (horas de falta injustificada)</div>
+      <table>
+        <thead>
+          <tr><th>Mês</th><th>Horas de falta</th><th>Taxa de absenteísmo</th></tr>
+        </thead>
+        <tbody>
+          {serie.map((m) => (
+            <tr key={m.period}>
+              <td>{m.period}</td>
+              <td>{m.horas_falta !== null ? `${fmtNumero(m.horas_falta, 2)}h` : "sem fonte"}</td>
+              <td>{m.taxa_absenteismo_pct !== null ? fmtPct(m.taxa_absenteismo_pct) : "sem fonte"}</td>
+            </tr>
+          ))}
+        </tbody>
+      </table>
+      <p className="page-subtitle" style={{ marginTop: "0.25rem" }}>
+        "Sem fonte" = a folha daquele mês (formato novo, contabilidade INOVARE) não tem uma
+        rubrica de faltas identificada até agora — não significa zero faltas, significa que não dá
+        pra calcular com confiança ainda.
+      </p>
 
       {aso && (
         <>

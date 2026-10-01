@@ -169,6 +169,19 @@ function CardsRh({ doc, onClick }) {
         color="indigo"
         onClick={onClick}
       />
+      {d && (
+        <KpiCard
+          label="Absenteísmo"
+          value={
+            d.taxa_absenteismo_atual_pct !== null && d.taxa_absenteismo_atual_pct !== undefined
+              ? fmtPct(d.taxa_absenteismo_atual_pct)
+              : "sem fonte"
+          }
+          color="indigo"
+          meta={d.taxa_absenteismo_atual_period ? `Mês: ${d.taxa_absenteismo_atual_period}` : "sem rubrica identificada no formato atual da folha"}
+          onClick={onClick}
+        />
+      )}
     </>
   );
 }
