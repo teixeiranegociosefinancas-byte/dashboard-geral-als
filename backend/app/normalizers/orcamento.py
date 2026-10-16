@@ -199,12 +199,334 @@ def _ajustar_receita_com_contratos(serie: list[dict], projecao_receita: dict | N
     return considerados_por_mes
 
 
+
+# ---------------------------------------------------------------------------
+# MODELO DRE EDITÁVEL (Orçamento v2 — pedido do usuário, 11/10/2026)
+#
+# Estrutura "conta × mês" no formato do DRE mensal: RECEITAS de um lado,
+# DESPESAS do outro, 12 meses do ano. Meses até `ultimo_mes_real` são fato
+# (DRE); os seguintes são PROJETADOS e editáveis no site (os ajustes do
+# usuário ficam numa coleção à parte, `orcamento_ajustes`, e o frontend aplica
+# por cima do `base` daqui — este módulo só gera o valor base de cada célula).
+#
+# Identidade conferida contra o DRE V18_2 nos 7 meses reais (jan-jul/2026):
+#   Lucro = Receita bruta − Impostos(16,33% da RB, regra do usuário p/ 2026)
+#           − Pessoal − Gerais − Bancárias/tributárias − "contas novas"
+#           + Outras receitas − Consórcio
+# Por isso as "contas novas" (aluguel de caminhões, adiantamentos a
+# fornecedores, movimentos com sócios...) entram no modelo como linhas — sem
+# elas o lucro projetado ficaria muito acima do real.
+#
+# REGRAS DE PROJEÇÃO (valor base; tudo editável pelo usuário):
+# - Linha de despesa: média de TODOS os meses reais da própria linha
+#   (inclui meses zerados). Exceções: (a) `projetar=False` → 0 (movimentos
+#   com sócios, conta 476 e empréstimos, por regra já decidida pelo usuário
+#   no DRE; continua editável); (b) "13º salário": Nov e Dez = 50% da média
+#   mensal de Salários cada (1ª e 2ª parcela) — SEM encargos sobre o 13º.
+# - Clientes privados recorrentes (fonte: Roteiros de Serviços, OS
+#   realizadas): meses com dado do Roteiro usam o valor do Roteiro; meses
+#   sem dado usam a média dos últimos 6 meses com dado. Recorrente =
+#   faturou em ≥ 8 dos 9 meses medidos E média ≥ R$3.000/mês, e não é órgão
+#   público (contrato público é faturado fora do Roteiro).
+# - "Demais receitas": real = Receita Bruta − soma dos clientes recorrentes;
+#   projetado = média dos meses reais desse resíduo + valor mensal dos
+#   contratos novos ativos no mês (mesma regra já validada em 13/09).
+# - Impostos = alíquota única × receita bruta total do mês.
+# - REGRA DE FECHAMENTO POSITIVO: se a receita base não cobre
+#   Despesas × (1 + margem mínima) após impostos, uma linha derivada "Ajuste
+#   de receita" completa a diferença: R* = D × (1+m) ÷ (1−t). É a receita
+#   que a área comercial precisa buscar além da base recorrente.
+# ---------------------------------------------------------------------------
+
+MESES_ANO = [f"{m:02d}" for m in range(1, 13)]
+
+
+def _slug(texto: str) -> str:
+    import re
+    import unicodedata
+    t = unicodedata.normalize("NFKD", texto).encode("ascii", "ignore").decode().lower()
+    return re.sub(r"[^a-z0-9]+", "_", t).strip("_")
+
+
+def _media(valores: list[float]) -> float:
+    return sum(valores) / len(valores) if valores else 0.0
+
+
+def _periodos_do_ano(primeiro_period: str) -> list[str]:
+    ano = primeiro_period.split("-")[0]
+    return [f"{ano}-{m}" for m in MESES_ANO]
+
+
+def _linha_despesa(grupo_id: str, nome: str, valores_reais: dict[str, float], periodos: list[str],
+                   reais: list[str], projetar: bool = True, motivo_nao_projetar: str | None = None,
+                   extra: dict | None = None) -> dict:
+    historico = [float(valores_reais.get(p, 0.0)) for p in reais]
+    media = _media(historico)
+    base: dict[str, float] = {}
+    for p in periodos:
+        if p in reais:
+            base[p] = round(float(valores_reais.get(p, 0.0)), 2)
+        else:
+            base[p] = round(media, 2) if projetar else 0.0
+    # orçamento estimado (média acumulada dos meses reais ANTERIORES) — só pros meses reais
+    estimado: dict[str, float | None] = {}
+    acumulado: list[float] = []
+    for p in reais:
+        estimado[p] = round(_media(acumulado), 2) if acumulado else None
+        acumulado.append(float(valores_reais.get(p, 0.0)))
+    linha = {
+        "id": f"{grupo_id}.{_slug(nome)}",
+        "nome": nome,
+        "base": base,
+        "estimado": estimado,
+        "projetar": projetar,
+        "categoria_manutencao": "manuten" in nome.lower(),
+    }
+    if not projetar and motivo_nao_projetar:
+        linha["motivo_nao_projetar"] = motivo_nao_projetar
+    if extra:
+        linha.update(extra)
+    return linha
+
+
+def _classificar_clientes(clientes: list[dict], periodos_medidos: list[str]) -> tuple[list[dict], list[dict]]:
+    """clientes: [{nome, publico(bool), valores:{period:valor}}] (valor do Roteiro, OS realizadas).
+    Retorna (recorrentes, intermitentes)."""
+    recorrentes, intermitentes = [], []
+    n = len(periodos_medidos)
+    for c in clientes:
+        valores = [float(c["valores"].get(p, 0.0)) for p in periodos_medidos]
+        ativos = sum(1 for v in valores if v > 0)
+        media = _media(valores)
+        desvio = (sum((v - media) ** 2 for v in valores) / n) ** 0.5 if n else 0.0
+        cv = round(desvio / media, 2) if media else None
+        info = {
+            "nome": c["nome"],
+            "meses_ativos": ativos,
+            "meses_medidos": n,
+            "media_mensal": round(media, 2),
+            "minimo": round(min(valores), 2) if valores else 0,
+            "maximo": round(max(valores), 2) if valores else 0,
+            "variabilidade_cv": cv,
+            "total": round(sum(valores), 2),
+        }
+        if not c.get("publico") and ativos >= 8 and media >= 3000:
+            info["classe"] = "Recorrente"
+            info["valores"] = {p: round(float(c["valores"].get(p, 0.0)), 2) for p in periodos_medidos}
+            recorrentes.append(info)
+        elif ativos >= 5 and media >= 3000:
+            info["classe"] = "Intermitente"
+            intermitentes.append(info)
+    recorrentes.sort(key=lambda x: -x["total"])
+    intermitentes.sort(key=lambda x: -x["total"])
+    return recorrentes, intermitentes
+
+
+def _build_modelo_dre(agrupado, contratos_novos: list[dict], inputs: dict) -> dict:
+    ultimo_real = inputs["ultimo_mes_real"]
+    rb_real: dict[str, float] = {k: float(v) for k, v in inputs["receita_bruta_real"].items()}
+    reais = sorted(rb_real.keys())
+    periodos = _periodos_do_ano(reais[0])
+    projetados = [p for p in periodos if p > ultimo_real]
+    aliquota = float(inputs.get("aliquota_imposto_pct", 16.33))
+    margem = float(inputs.get("margem_minima_sobre_despesa_pct", 20.0))
+    meta_mensal = inputs.get("meta_mensal")
+
+    meses = [{"period": p, "status": "real" if p <= ultimo_real else "projetado"} for p in periodos]
+
+    # ---------------- DESPESAS ----------------
+    grupos_desp = []
+
+    def _add_grupo(gid: str, nome: str, linhas: list[dict]):
+        grupos_desp.append({"id": gid, "nome": nome, "linhas": linhas})
+
+    # Pessoal e Gerais (vêm de contas_detalhadas, já agrupado por categoria)
+    media_salarios = None
+    for gid, categoria, nome in [("desp_pessoal", "Despesas com Pessoal", "Despesas com pessoal"),
+                                 ("desp_gerais", "Despesas Gerais", "Despesas gerais")]:
+        contas = agrupado.get(categoria, {})
+        linhas = []
+        for conta, valores in contas.items():
+            linha = _linha_despesa(gid, conta, valores, periodos, reais)
+            if conta.strip().lower() in ("salários", "salarios"):
+                media_salarios = _media([float(valores.get(p, 0.0)) for p in reais])
+            linhas.append(linha)
+        _add_grupo(gid, nome, linhas)
+    # 13º salário: 2 parcelas (Nov/Dez) = 50% da média de salários cada
+    if media_salarios:
+        for g in grupos_desp:
+            for linha in g["linhas"]:
+                if linha["nome"].strip().lower().startswith("13"):
+                    ano = periodos[0].split("-")[0]
+                    for p in periodos:
+                        if p not in reais:
+                            linha["base"][p] = round(media_salarios * 0.5, 2) if p in (f"{ano}-11", f"{ano}-12") else 0.0
+                    linha["nota"] = ("Nov e Dez = 50% da média mensal de Salários cada (1ª e 2ª parcela). "
+                                     "Não inclui encargos (INSS/FGTS) sobre o 13º.")
+
+    # Extras (bancárias/tributárias, contas novas, consórcio) — chegam como linhas {categoria, conta_nome, period, valor, projetar, motivo}
+    extras: dict[str, dict[str, dict]] = defaultdict(lambda: defaultdict(lambda: {"valores": {}, "projetar": True, "motivo": None}))
+    for r in inputs.get("contas_extra", []):
+        cat = r["categoria"]
+        reg = extras[cat][r["conta_nome"]]
+        reg["valores"][r["period"]] = reg["valores"].get(r["period"], 0.0) + float(r["valor"])
+        if r.get("projetar") is False:
+            reg["projetar"] = False
+            reg["motivo"] = r.get("motivo")
+    for gid, categoria, nome in [("desp_bancarias", "Despesas Bancárias e Tributárias", "Despesas bancárias e tributárias"),
+                                 ("desp_contas_novas", "Contas novas e movimentos com sócios", "Contas novas e movimentos com sócios")]:
+        linhas = []
+        for conta, reg in extras.get(categoria, {}).items():
+            linhas.append(_linha_despesa(gid, conta, reg["valores"], periodos, reais,
+                                         projetar=reg["projetar"], motivo_nao_projetar=reg["motivo"]))
+        if linhas:
+            _add_grupo(gid, nome, linhas)
+
+    # ---------------- RECEITAS ----------------
+    grupos_rec = []
+    clientes = inputs.get("clientes", [])
+    periodos_medidos = sorted({p for c in clientes for p in c["valores"].keys()})
+    recorrentes, intermitentes = _classificar_clientes(clientes, periodos_medidos)
+
+    linhas_cli = []
+    soma_cli_real = {p: 0.0 for p in reais}
+    for c in recorrentes:
+        vals = c["valores"]
+        ultimos6 = [vals[p] for p in periodos_medidos[-6:]]
+        media6 = _media(ultimos6)
+        base = {}
+        origem = {}
+        for p in periodos:
+            if p in vals:
+                base[p] = vals[p]
+                origem[p] = "roteiro"
+            else:
+                base[p] = round(media6, 2)
+                origem[p] = "regra"
+        for p in reais:
+            soma_cli_real[p] += vals.get(p, 0.0)
+        linhas_cli.append({
+            "id": f"rec_clientes.{_slug(c['nome'])}",
+            "nome": c["nome"],
+            "base": base,
+            "origem": origem,
+            "estimado": {},
+            "recorrencia": {k: c[k] for k in ("classe", "meses_ativos", "meses_medidos", "media_mensal",
+                                              "minimo", "maximo", "variabilidade_cv", "total")},
+            "nota": "Fonte: Roteiros de Serviços 2026 (OS realizadas). Meses sem dado: média dos últimos 6 meses.",
+        })
+    grupos_rec.append({"id": "rec_clientes", "nome": "Clientes privados recorrentes", "linhas": linhas_cli})
+
+    # Demais receitas
+    demais_real = {p: round(rb_real[p] - soma_cli_real[p], 2) for p in reais}
+    media_demais = _media([demais_real[p] for p in reais])
+    base_demais = {}
+    contratos_por_mes = {}
+    for p in periodos:
+        if p in reais:
+            base_demais[p] = demais_real[p]
+        else:
+            ativos = [c for c in (contratos_novos or []) if _contrato_ativo_no_mes(c, p)]
+            ajuste = sum(_valor_mensal_contrato(c) for c in ativos)
+            base_demais[p] = round(media_demais + ajuste, 2)
+            if ativos:
+                contratos_por_mes[p] = [c.get("nome") for c in ativos]
+    acum, est_demais = [], {}
+    for p in reais:
+        est_demais[p] = round(_media(acum), 2) if acum else None
+        acum.append(demais_real[p])
+    grupos_rec.append({"id": "rec_demais", "nome": "Demais receitas", "linhas": [{
+        "id": "rec_demais.contratos_publicos_avulsos",
+        "nome": "Contratos públicos, avulsos e clientes intermitentes",
+        "base": base_demais,
+        "estimado": est_demais,
+        "contratos_novos_por_mes": contratos_por_mes,
+        "nota": ("Real = Receita Bruta do DRE − clientes recorrentes acima. Projetado = média dos meses reais "
+                 "+ valor mensal aproximado dos contratos novos ativos (valor total ÷ validade × 30)."),
+    }]})
+
+    outras = inputs.get("outras_receitas_real", {})
+    if any(abs(float(v)) > 0 for v in outras.values()):
+        base_out = {p: round(float(outras.get(p, 0.0)), 2) if p in reais else 0.0 for p in periodos}
+        grupos_rec.append({"id": "rec_outras", "nome": "Outras receitas (financeiras / pontuais)", "tributavel": False, "linhas": [{
+            "id": "rec_outras.outras_receitas", "nome": "Outras receitas", "base": base_out, "estimado": {},
+            "projetar": False, "motivo_nao_projetar": "pontual / rendimento financeiro — não projetado",
+        }]})
+
+    # ---------------- RESUMO COM BASE (sem ajustes do usuário) ----------------
+    def _soma_grupos(grupos, p, so_tributavel=None):
+        return sum(l["base"][p] for g in grupos
+                   if so_tributavel is None or g.get("tributavel", True) == so_tributavel
+                   for l in g["linhas"])
+
+    por_mes = []
+    for p in periodos:
+        rec_trib = _soma_grupos(grupos_rec, p, True)    # receita bruta (tributável)
+        rec_nao_trib = _soma_grupos(grupos_rec, p, False)  # financeiras / pontuais (sem imposto)
+        desp = _soma_grupos(grupos_desp, p)
+        ajuste = 0.0
+        if p in projetados:
+            # Rb tal que Rb − t·Rb + outras − desp = margem·desp
+            necessaria = (desp * (1 + margem / 100) - rec_nao_trib) / (1 - aliquota / 100)
+            ajuste = max(0.0, necessaria - rec_trib)
+        receita_bruta = rec_trib + ajuste
+        impostos = receita_bruta * aliquota / 100
+        por_mes.append({
+            "period": p,
+            "status": "real" if p <= ultimo_real else "projetado",
+            "receita_base": round(rec_trib + rec_nao_trib, 2),
+            "ajuste_receita": round(ajuste, 2),
+            "receita_total": round(receita_bruta + rec_nao_trib, 2),
+            "impostos": round(impostos, 2),
+            "despesas": round(desp, 2),
+            "resultado": round(receita_bruta + rec_nao_trib - impostos - desp, 2),
+        })
+
+    return {
+        "ano": periodos[0].split("-")[0],
+        "meses": meses,
+        "ultimo_mes_real": ultimo_real,
+        "parametros": {
+            "aliquota_imposto_pct": aliquota,
+            "margem_minima_sobre_despesa_pct": margem,
+            "meta_mensal_comercial": meta_mensal,
+        },
+        "receitas": {"grupos": grupos_rec},
+        "despesas": {"grupos": grupos_desp},
+        "recorrencia": {
+            "recorrentes": [{k: v for k, v in c.items() if k != "valores"} for c in recorrentes],
+            "intermitentes": intermitentes,
+            "criterio": ("Recorrente = faturou em ≥ 8 dos meses medidos e média ≥ R$3.000/mês, excluídos órgãos "
+                         "públicos (faturados fora do Roteiro). Intermitente = ≥ 5 meses com média ≥ R$3.000."),
+            "periodos_medidos": periodos_medidos,
+            "fonte": inputs.get("fonte_clientes"),
+        },
+        "resumo_base": {
+            "por_mes": por_mes,
+            "receita_ano": round(sum(m["receita_total"] for m in por_mes), 2),
+            "despesas_ano": round(sum(m["despesas"] for m in por_mes), 2),
+            "impostos_ano": round(sum(m["impostos"] for m in por_mes), 2),
+            "resultado_ano": round(sum(m["resultado"] for m in por_mes), 2),
+            "ajuste_receita_total": round(sum(m["ajuste_receita"] for m in por_mes), 2),
+        },
+        "metodologia": [
+            "Meses até o último fechado do DRE são fato; os seguintes são projeção editável.",
+            "Despesa projetada = média dos meses reais da própria conta (13º salário: Nov/Dez = 50% da média de salários cada, sem encargos).",
+            "Movimentos com sócios, conta 476 (impostos diversos) e empréstimos entram no realizado mas não são projetados (regra do DRE do usuário) — editáveis.",
+            "Impostos = alíquota única sobre a receita bruta (16,33% — regra do DRE 2026); 'Outras receitas' (financeiras/pontuais) não pagam imposto.",
+            "Receita projetada = clientes recorrentes (Roteiro) + demais receitas (média + contratos novos) + ajuste.",
+            "Ajuste de receita: se a receita não cobre despesas × (1 + margem mínima) após impostos, a diferença é adicionada como meta de venda.",
+        ],
+    }
+
+
 def normalize_orcamento(
     meses: list[dict],
     contas_detalhadas: list[dict] | None = None,
     contratos_novos: list[dict] | None = None,
     ponto_equilibrio_seguro: float | None = None,
     ponto_equilibrio_seguro_period: str | None = None,
+    modelo_dre_inputs: dict | None = None,
 ) -> dict:
     meses_ordenados = sorted(meses, key=lambda x: x.get("period", ""))
 
@@ -310,9 +632,14 @@ def normalize_orcamento(
             ),
         }
 
+    modelo_dre = None
+    if modelo_dre_inputs:
+        modelo_dre = _build_modelo_dre(agrupado, contratos_novos or [], modelo_dre_inputs)
+
     return {
         "serie_mensal": serie,
         "projecao_proximo_mes": projecao_proximo_mes,
+        "modelo_dre": modelo_dre,
         "detalhamento_contas": detalhamento_contas,
         "contratos_novos_considerados": contratos_considerados_por_mes,
         "cenario_20pct_sobre_ponto_equilibrio": cenario_20pct_sobre_ponto_equilibrio,

@@ -1,7 +1,7 @@
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 
-from .routes import ingest, kpis, upload
+from .routes import ingest, kpis, orcamento, upload
 
 app = FastAPI(title="Dashboard Geral ALS — API")
 
@@ -17,6 +17,7 @@ app.add_middleware(
 app.include_router(ingest.router)
 app.include_router(upload.router)
 app.include_router(kpis.router)
+app.include_router(orcamento.router)
 
 
 @app.get("/api/health")

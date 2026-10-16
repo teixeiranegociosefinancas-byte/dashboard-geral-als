@@ -15,9 +15,14 @@ usuário via pergunta direta, deliberadamente SEM depender do Balanço
 Patrimonial/Balancete (fonte que o usuário sinalizou não ser confiável
 nesta rodada — "balanço está meio que inventado pela contabilidade"):
 
-- ROI = Lucro Líquido ÷ Receita Líquida (margem líquida sobre receita já
-  líquida de impostos — diferente de `margem_liquida_pct` abaixo, que usa
-  Receita BRUTA como base e já existia antes desta mudança).
+- ROI (REDEFINIDO em 13/10/2026, opção B escolhida pelo usuário após
+  pesquisa: ROI = (ganho − custo do investimento) ÷ custo do investimento):
+  ROI sobre o custo = (Receita Líquida − Custo Total) ÷ Custo Total, onde
+  Custo Total = Receita Líquida − Lucro Líquido (tudo que foi deduzido da
+  receita líquida até chegar ao lucro final, inclusive movimentos com
+  sócios). Equivale a Lucro Líquido ÷ (Receita Líquida − Lucro Líquido).
+  Até 12/10/2026 o campo usava Lucro ÷ Receita Líquida, que é margem líquida
+  (não ROI) — `margem_liquida_pct` (sobre Receita Bruta) continua existindo.
 - EBITDA = Lucro ANTES do Imposto de Renda e de Movimentos com Sócios
   (linha 178 da mesma planilha DRE, seção "RESULTADO — VISÃO EM CAMADAS")
   + Depreciação (linha 88) + Juros (linhas 84+85 — bancários e de mora).
@@ -122,7 +127,8 @@ def normalize_financeiro(
         receita_liquida = float(m.get("receita_liquida") or 0)
         lucro = float(m.get("lucro_liquido") or 0)
         margem = round(100 * lucro / receita, 1) if receita else None
-        roi_pct = round(100 * lucro / receita_liquida, 1) if receita_liquida else None
+        custo_total = receita_liquida - lucro
+        roi_pct = round(100 * lucro / custo_total, 1) if custo_total > 0 else None
 
         lucro_antes_ir_e_socios = m.get("lucro_antes_ir_e_socios")
         ebitda = None
@@ -211,7 +217,10 @@ def normalize_financeiro(
         "receita_acumulada": round(receita_acumulada, 2),
         "lucro_acumulado": round(lucro_acumulado, 2),
         "margem_liquida_acumulada_pct": round(100 * lucro_acumulado / receita_acumulada, 1) if receita_acumulada else None,
-        "roi_pct_acumulado": round(100 * lucro_acumulado / receita_liquida_acumulada, 1) if receita_liquida_acumulada else None,
+        "roi_pct_acumulado": (
+            round(100 * lucro_acumulado / (receita_liquida_acumulada - lucro_acumulado), 1)
+            if (receita_liquida_acumulada - lucro_acumulado) > 0 else None
+        ),
         "ebitda_acumulado": round(ebitda_acumulado, 2) if tem_ebitda else None,
         "ebitda_pct_receita_liquida_acumulado": (
             round(100 * ebitda_acumulado / receita_liquida_acumulada, 1)
@@ -238,7 +247,7 @@ def normalize_financeiro(
             "Fixo ÷ Margem de Contribuição (%)."
         ),
         "aviso_roi_ebitda": (
-            "ROI = Lucro Líquido ÷ Receita Líquida. EBITDA = Lucro antes do Imposto de "
+            "ROI (sobre o custo) = (Receita Líquida − Custo Total) ÷ Custo Total, com Custo Total = Receita Líquida − Lucro Líquido. EBITDA = Lucro antes do Imposto de "
             "Renda e de Movimentos com Sócios (linha 178 da DRE) + Depreciação + Juros — "
             "todos campos da mesma planilha DRE interna já validada, sem usar nenhum dado "
             "do Balanço Patrimonial/Balancete."

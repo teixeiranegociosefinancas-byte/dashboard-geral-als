@@ -1,3 +1,4 @@
+import Orcamento from "./Orcamento.jsx";
 import { useEffect, useState } from "react";
 import { fetchLatest } from "../api.js";
 import { areaLabel } from "../areas.js";
@@ -236,7 +237,7 @@ function DetalheFinanceiro({ d }) {
           <div className="card-value purple">{d.margem_liquida_acumulada_pct !== null ? fmtPct(d.margem_liquida_acumulada_pct) : "—"}</div>
         </div>
         <div className="card">
-          <div className="card-label">ROI (Lucro Líquido ÷ Receita Líquida)</div>
+          <div className="card-label">ROI sobre o custo ((Receita Líquida − Custo) ÷ Custo)</div>
           <div className="card-value purple">{d.roi_pct_acumulado !== null ? fmtPct(d.roi_pct_acumulado) : "—"}</div>
         </div>
         <div className="card">
@@ -307,7 +308,7 @@ function DetalheFinanceiro({ d }) {
         <thead>
           <tr>
             <th>Mês</th><th>Receita bruta</th><th>Despesas pessoal</th><th>Despesas gerais</th>
-            <th>Lucro líquido</th><th>Margem</th><th>ROI</th><th>EBITDA</th><th>EBITDA / Receita líq.</th>
+            <th>Lucro líquido</th><th>Margem</th><th>ROI s/ custo</th><th>EBITDA</th><th>EBITDA / Receita líq.</th>
           </tr>
         </thead>
         <tbody>
@@ -831,7 +832,8 @@ const RENDERERS = {
   frota: DetalheFrota,
   operacional: DetalheOperacional,
   financeiro: DetalheFinanceiro,
-  orcamento: DetalheOrcamento,
+  // Orçamento v2 (modelo DRE editável); snapshots antigos sem `modelo_dre` caem na tela legada
+  orcamento: (props) => (props.d?.modelo_dre ? <Orcamento {...props} /> : <DetalheOrcamento {...props} />),
   rh: DetalheRh,
   opex: DetalheOpex,
   capex: DetalheCapex,

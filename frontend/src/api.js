@@ -47,6 +47,25 @@ export async function uploadArquivo({ area, period, sheetName, file, apiKey }) {
   return data;
 }
 
+// Ajustes do Orçamento feitos no site (a leitura é aberta; a gravação pede o
+// PIN de edição só se o servidor tiver ORCAMENTO_EDIT_PIN configurado).
+export async function fetchAjustesOrcamento() {
+  return get("/api/orcamento/ajustes/latest");
+}
+
+export async function salvarAjustesOrcamento({ ajustes, parametros, nota, pin }) {
+  const res = await fetch(`${BASE_URL}/api/orcamento/ajustes`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json", "x-edit-pin": pin || "" },
+    body: JSON.stringify({ ajustes, parametros, nota: nota || null }),
+  });
+  const data = await res.json().catch(() => ({}));
+  if (!res.ok) {
+    throw new Error(typeof data.detail === "string" ? data.detail : `Erro ${res.status} ao salvar`);
+  }
+  return data;
+}
+
 export function apiConfigured() {
   return Boolean(BASE_URL);
 }

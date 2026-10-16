@@ -35,3 +35,21 @@ def snapshots() -> Collection:
     }
     """
     return get_db()["kpi_snapshots"]
+
+
+def orcamento_ajustes() -> Collection:
+    """Histórico (append-only) dos ajustes que o usuário faz no site, na tela de
+    Orçamento. Cada salvamento vira um documento novo — nunca sobrescreve, então
+    qualquer ajuste errado pode ser recuperado e o Claude consegue ler a versão
+    mais recente (ou o histórico) pra saber o que foi mudado.
+
+    Documento:
+    {
+      created_at: datetime,
+      ajustes: { "<id da linha>": { "AAAA-MM": valor, ... }, ... },
+      parametros: { margem_minima_sobre_despesa_pct, aliquota_imposto_pct },
+      nota: str | None,
+      origem: "site"
+    }
+    """
+    return get_db()["orcamento_ajustes"]

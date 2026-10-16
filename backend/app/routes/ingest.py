@@ -70,6 +70,7 @@ def _normalizar(payload: IngestPayload, normalize):
             contratos_novos=_extra_orcamento.get("contratos_novos"),
             ponto_equilibrio_seguro=_extra_orcamento.get("ponto_equilibrio_seguro"),
             ponto_equilibrio_seguro_period=_extra_orcamento.get("ponto_equilibrio_seguro_period"),
+            modelo_dre_inputs=_extra_orcamento.get("modelo_dre_inputs"),
         )
     elif payload.area == "rh":
         resultado = normalize(payload.rows, aso_funcionarios=(payload.extra or {}).get("aso_funcionarios"))
