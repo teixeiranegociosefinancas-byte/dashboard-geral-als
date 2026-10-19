@@ -256,21 +256,30 @@ function DetalheFinanceiro({ d }) {
           <div className="card">
             <div className="card-label">Prazo médio de recebimento</div>
             <div className="card-value purple">{d.pmr_dias !== null ? `${fmtNumero(d.pmr_dias, 1)} dias` : "—"}</div>
+            <div className="card-meta">da emissão ao recebimento</div>
           </div>
         )}
         {d.pmp_dias !== undefined && (
           <div className="card">
             <div className="card-label">Prazo médio de pagamento</div>
             <div className="card-value purple">{d.pmp_dias !== null ? `${fmtNumero(d.pmp_dias, 1)} dias` : "—"}</div>
+            <div className="card-meta">da emissão ao pagamento</div>
           </div>
         )}
         {d.inadimplencia_pct !== undefined && (
           <div className="card">
             <div className="card-label">Inadimplência</div>
             <div className="card-value purple">{d.inadimplencia_pct !== null ? fmtPct(d.inadimplencia_pct) : "—"}</div>
+            <div className="card-meta">valor vencido e não recebido ÷ valor vencido</div>
           </div>
         )}
       </div>
+      {(d.aviso_recebimento || d.periodo_recebimento) && (
+        <p className="page-subtitle" style={{ marginTop: "-0.5rem", marginBottom: "1rem" }}>
+          {d.periodo_recebimento ? `Prazos e inadimplência: ${d.periodo_recebimento}. ` : ""}
+          {d.aviso_recebimento || ""}
+        </p>
+      )}
 
       {d.margem_contribuicao_pct !== null && d.margem_contribuicao_pct !== undefined && (
         <>
