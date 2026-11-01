@@ -215,7 +215,7 @@ function oscilacao(reais) {
   return { chave: "mvar", icone: "↯", rotulo: "Muito variável", cv };
 }
 
-export function ConsumoPorConta({ itens, ritmoPct, grupos, limiteInicial = 10 }) {
+export function ConsumoPorConta({ itens, ritmoPct, grupos, rotuloReal = "realizado", rotuloProj = "previsto", limiteInicial = 10 }) {
   const [grupo, setGrupo] = useState("todos");
   const [todos, setTodos] = useState(false);
   const lista = itens
@@ -231,8 +231,9 @@ export function ConsumoPorConta({ itens, ritmoPct, grupos, limiteInicial = 10 })
         <div>
           <div className="orc-chart-title">Despesas por conta contábil</div>
           <div className="orc-chart-sub">
-            Sólido = já realizado · listrado = ainda previsto até dezembro. O alerta de ritmo só aparece quando o realizado foge do
-            orçado (esperado hoje: {fmtPct(ritmoPct)} do ano).
+            Para cada conta: quanto já foi gasto de {rotuloReal} (parte cheia da barra, dado real do DRE) e quanto o orçamento
+            prevê gastar de {rotuloProj} (parte listrada = média mensal da conta × meses que faltam, editável na grade). A soma
+            é o orçamento do ano da conta.
           </div>
         </div>
       </div>
@@ -247,6 +248,12 @@ export function ConsumoPorConta({ itens, ritmoPct, grupos, limiteInicial = 10 })
       </div>
 
       <div className="orc-bars">
+        <div className="orc-bar-row orc-bar-head">
+          <div>Conta</div>
+          <div><i className="orc-sw" style={{ background: COR_DESPESA }} /> {rotuloReal} (real) <i className="orc-sw orc-sw-hatch" /> {rotuloProj} (previsto)</div>
+          <div>Real {rotuloReal} + previsto {rotuloProj} = ano</div>
+          <div>Variação mês a mês</div>
+        </div>
         {visiveis.map((i) => {
           const st = statusConsumo(i.stat);
           const osc = oscilacao(i.reais || []);
@@ -257,7 +264,7 @@ export function ConsumoPorConta({ itens, ritmoPct, grupos, limiteInicial = 10 })
             <div
               key={i.id}
               className="orc-bar-row"
-              title={`${i.nome}\nPrevisto no ano: ${fmtMoeda(i.stat.previsto)}\nRealizado: ${fmtMoeda(i.stat.realizado)}\nA realizar: ${fmtMoeda(i.stat.aRealizar)}${osc.cv !== null ? `\nOscilação mensal (CV): ${osc.cv.toLocaleString("pt-BR", { maximumFractionDigits: 2 })}` : ""}`}
+              title={`${i.nome}\nOrçamento do ano: ${fmtMoeda(i.stat.previsto)}\nJá realizado (${rotuloReal}): ${fmtMoeda(i.stat.realizado)}\nPrevisto (${rotuloProj}): ${fmtMoeda(i.stat.aRealizar)}${osc.cv !== null ? `\nOscilação mensal (CV): ${osc.cv.toLocaleString("pt-BR", { maximumFractionDigits: 2 })}` : ""}`}
             >
               <div className="orc-bar-name">{i.nome}</div>
               <div className="orc-bar-track" role="img" aria-label={`${i.nome}: realizado ${fmtMoeda(i.stat.realizado)}, a realizar ${fmtMoeda(i.stat.aRealizar)}`}>
@@ -265,8 +272,14 @@ export function ConsumoPorConta({ itens, ritmoPct, grupos, limiteInicial = 10 })
                 <div className="orc-bar-rest" style={{ left: `${wReal}%`, width: `${wResto}%` }} />
               </div>
               <div className="orc-bar-val">
-                {fmtMoeda(i.stat.realizado)} <span className="dim">+ {fmtMoeda(i.stat.aRealizar)} a realizar</span>
+                {fmtMoeda(i.stat.realizado)} <span className="dim">+ {fmtMoeda(i.stat.aRealizar)}</span>
                 <b> = {fmtMoeda(i.stat.previsto)}</b>
+                {i.reais && i.reais.length ? (
+                  <div className="dim orc-bar-media">
+                    média real {fmtMoeda(i.stat.realizado / i.reais.length)}/mês
+                    {i.stat.aRealizar > 0 ? ` · previsto ${fmtMoeda(i.stat.aRealizar / Math.max(1, 12 - i.reais.length))}/mês` : ""}
+                  </div>
+                ) : null}
               </div>
               <div className="orc-bar-tags">
                 <span className={`orc-osc o-${osc.chave}`}><span aria-hidden="true">{osc.icone}</span> {osc.rotulo}</span>

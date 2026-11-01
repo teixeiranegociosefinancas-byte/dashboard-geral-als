@@ -355,8 +355,55 @@ function Variacao({ st, ehReceita }) {
 }
 
 // ---------------------------------------------------------------- aba: clientes fiéis
+const PUBLICO_RE = /^(P M |PM |PREF|UEFS|FUNDAC|POLICIA|MUNICIPIO|SECRETARIA)/i;
+
+function ContratosPublicos({ modelo }) {
+  const g = modelo.receitas.grupos.find((x) => x.id === "rec_demais");
+  const linhas = (g?.linhas || []).filter((l) => l.contrato_publico);
+  if (!linhas.length) return null;
+  const proj = modelo.meses.find((m) => m.status !== "real")?.period;
+  const avulsos = g.linhas.find((l) => !l.contrato_publico);
+  return (
+    <>
+      <div className="section-title" style={{ marginTop: 0 }}>Contratos públicos (faturamento por órgão)</div>
+      <div className="orc-nota">
+        Faturado por mês de emissão da nota, segundo o ERP{g.fonte ? ` (${g.fonte})` : ""}. Projeção mensal = média dos últimos 6 meses
+        reais do órgão; quem faturou em menos de 3 desses meses fica com projeção 0 (pontual), mas dá para editar na grade.
+      </div>
+      <div className="orc-table-wrap">
+        <table className="orc-detalhe">
+          <thead>
+            <tr><th>Órgão / contrato</th><th>Meses faturados</th><th>Faturado no ano (real)</th><th>Média últimos 6 meses</th><th>Projeção mensal</th></tr>
+          </thead>
+          <tbody>
+            {linhas.map((l) => (
+              <tr key={l.id}>
+                <td title={(l.contrato_publico.nomes_no_erp || []).join(" · ")}>{l.nome}</td>
+                <td>{l.contrato_publico.meses_faturados}/{l.contrato_publico.meses_medidos}</td>
+                <td>{fmtMoeda(l.contrato_publico.total_real)}</td>
+                <td>{fmtMoeda(l.contrato_publico.media_ultimos_6)}</td>
+                <td>{l.projetar === false ? <span className="dim">0 — {l.motivo_nao_projetar}</span> : fmtMoeda(proj ? l.base[proj] : 0)}</td>
+              </tr>
+            ))}
+            {avulsos && (
+              <tr className="orc-tr-linha">
+                <td>{avulsos.nome}</td><td>—</td>
+                <td>{fmtMoeda(modelo.meses.filter((m) => m.status === "real").reduce((s, m) => s + (avulsos.base[m.period] || 0), 0))}</td>
+                <td>—</td>
+                <td>{fmtMoeda(proj ? avulsos.base[proj] : 0)}</td>
+              </tr>
+            )}
+          </tbody>
+        </table>
+      </div>
+      <div style={{ height: 20 }} />
+    </>
+  );
+}
+
 function Clientes({ modelo }) {
   const rec = modelo.recorrencia;
+  const intermitentes = rec.intermitentes.filter((c) => !PUBLICO_RE.test(c.nome));
   const linha = (c) => (
     <tr key={c.nome}>
       <td>{c.nome}</td>
@@ -368,6 +415,8 @@ function Clientes({ modelo }) {
   );
   return (
     <div>
+      <ContratosPublicos modelo={modelo} />
+      <div className="section-title" style={{ marginTop: 0 }}>Clientes privados fiéis</div>
       <div className="orc-nota">
         {rec.criterio} Fonte: {rec.fonte}
       </div>
@@ -379,15 +428,15 @@ function Clientes({ modelo }) {
           <tbody>{rec.recorrentes.map(linha)}</tbody>
         </table>
       </div>
-      {rec.intermitentes.length > 0 && (
+      {intermitentes.length > 0 && (
         <>
-          <div className="section-title">Faturam com frequência, mas de forma intermitente (entram na linha “Demais receitas”)</div>
+          <div className="section-title">Faturam com frequência, mas de forma intermitente (entram na linha “Avulsos e demais clientes”)</div>
           <div className="orc-table-wrap">
             <table className="orc-detalhe">
               <thead>
                 <tr><th>Cliente</th><th>Meses faturados</th><th>Média/mês</th><th>Faixa</th><th>Estabilidade</th></tr>
               </thead>
-              <tbody>{rec.intermitentes.map(linha)}</tbody>
+              <tbody>{intermitentes.map(linha)}</tbody>
             </table>
           </div>
         </>
@@ -401,7 +450,7 @@ const ABAS = [
   { id: "mes", rotulo: "Mês a mês" },
   { id: "ano", rotulo: "Grade do ano" },
   { id: "conta", rotulo: "Detalhamento por conta" },
-  { id: "clientes", rotulo: "Clientes fiéis" },
+  { id: "clientes", rotulo: "Contratos e clientes" },
 ];
 
 export default function Orcamento({ d }) {
@@ -582,6 +631,8 @@ export default function Orcamento({ d }) {
         <ConsumoPorConta
           itens={itensDespesa}
           ritmoPct={100 * ritmo}
+          rotuloReal={`${mesCurto(modelo.meses[0].period)}–${ultimoReal}`}
+          rotuloProj={`${mesCurto(proximoProjetado)}–dez`}
           grupos={modelo.despesas.grupos.map((g) => ({ id: g.id, nome: g.nome }))}
         />
       </div>

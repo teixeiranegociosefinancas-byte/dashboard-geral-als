@@ -520,6 +520,123 @@ def _build_modelo_dre(agrupado, contratos_novos: list[dict], inputs: dict) -> di
     }
 
 
+# ---------------------------------------------------------------------------
+# Detalhamento de "Demais receitas" por contrato público (pedido do usuário,
+# 28/10/2026: "você colocou contratos públicos 580 mil só que não listou os
+# contratos como listou os clientes privados").
+#
+# Fonte: faturamento por cliente e mês de EMISSÃO da nota (relatório
+# "Comparativo Faturado x Recebido", aba Detalhado, exportação do ERP). Só
+# entram órgãos públicos identificados pelo nome exato no ERP.
+# - Real: o que cada órgão faturou no mês; "Avulsos e demais clientes" =
+#   Demais receitas do DRE (Receita Bruta − clientes recorrentes) − órgãos
+#   públicos. Assim o total do grupo continua batendo com o DRE.
+# - Projetado: média dos últimos 6 meses reais do órgão (meses sem nota
+#   contam como zero) SE ele faturou em pelo menos 3 desses 6 meses; senão 0
+#   (contrato pontual/encerrado — editável). Órgãos marcados `encerrado`
+#   ficam em 0. Avulsos: média dos últimos 6 meses reais.
+# Os "contratos novos" (valor total ÷ validade) deixam de ser somados à parte,
+# porque o faturamento desses órgãos já aparece nas linhas individuais.
+# ---------------------------------------------------------------------------
+MIN_MESES_PROJETAR_PUBLICO = 3
+
+
+def recalcular_resumo(modelo: dict) -> dict:
+    """Recalcula `resumo_base` a partir das linhas (mesma regra do builder)."""
+    aliquota = float(modelo["parametros"]["aliquota_imposto_pct"])
+    margem = float(modelo["parametros"]["margem_minima_sobre_despesa_pct"])
+    periodos = [m["period"] for m in modelo["meses"]]
+    status = {m["period"]: m["status"] for m in modelo["meses"]}
+
+    def soma(grupos, p, trib=None):
+        return sum(l["base"].get(p, 0.0) for g in grupos
+                   if trib is None or g.get("tributavel", True) == trib for l in g["linhas"])
+
+    por_mes = []
+    for p in periodos:
+        rec_trib = soma(modelo["receitas"]["grupos"], p, True)
+        rec_nao = soma(modelo["receitas"]["grupos"], p, False)
+        desp = soma(modelo["despesas"]["grupos"], p)
+        ajuste = 0.0
+        if status[p] != "real":
+            necessaria = (desp * (1 + margem / 100) - rec_nao) / (1 - aliquota / 100)
+            ajuste = max(0.0, necessaria - rec_trib)
+        rb = rec_trib + ajuste
+        imp = rb * aliquota / 100
+        por_mes.append({
+            "period": p, "status": status[p],
+            "receita_base": round(rec_trib + rec_nao, 2), "ajuste_receita": round(ajuste, 2),
+            "receita_total": round(rb + rec_nao, 2), "impostos": round(imp, 2),
+            "despesas": round(desp, 2), "resultado": round(rb + rec_nao - imp - desp, 2),
+        })
+    modelo["resumo_base"] = {
+        "por_mes": por_mes,
+        "receita_ano": round(sum(m["receita_total"] for m in por_mes), 2),
+        "despesas_ano": round(sum(m["despesas"] for m in por_mes), 2),
+        "impostos_ano": round(sum(m["impostos"] for m in por_mes), 2),
+        "resultado_ano": round(sum(m["resultado"] for m in por_mes), 2),
+        "ajuste_receita_total": round(sum(m["ajuste_receita"] for m in por_mes), 2),
+    }
+    return modelo
+
+
+def detalhar_demais_receitas(modelo: dict, publicos: list[dict], fonte: str | None = None) -> dict:
+    """`publicos`: [{nome, valores: {AAAA-MM: faturado}, encerrado?: bool, nomes_no_erp?: [...]}]."""
+    periodos = [m["period"] for m in modelo["meses"]]
+    reais = [m["period"] for m in modelo["meses"] if m["status"] == "real"]
+    grupo = next(g for g in modelo["receitas"]["grupos"] if g["id"] == "rec_demais")
+    total_real = {p: sum(l["base"].get(p, 0.0) for l in grupo["linhas"]) for p in reais}
+    ult6 = reais[-6:]
+
+    linhas, soma_pub = [], {p: 0.0 for p in reais}
+    for c in sorted(publicos, key=lambda c: -sum(c["valores"].get(p, 0.0) for p in reais)):
+        vals = {p: round(float(c["valores"].get(p, 0.0)), 2) for p in reais}
+        meses_ativos6 = sum(1 for p in ult6 if vals[p] > 0)
+        projeta = (not c.get("encerrado")) and meses_ativos6 >= MIN_MESES_PROJETAR_PUBLICO
+        media6 = round(_media([vals[p] for p in ult6]), 2) if projeta else 0.0
+        base = {p: (vals[p] if p in vals else media6) for p in periodos}
+        for p in reais:
+            soma_pub[p] += vals[p]
+        motivo = None
+        if not projeta:
+            motivo = ("contrato encerrado" if c.get("encerrado")
+                      else f"faturou em só {meses_ativos6} dos últimos 6 meses — tratado como pontual (projeção 0, editável)")
+        linhas.append({
+            "id": f"rec_demais.{_slug(c['nome'])}",
+            "nome": c["nome"],
+            "base": base,
+            "estimado": {},
+            "projetar": projeta,
+            **({"motivo_nao_projetar": motivo} if motivo else {}),
+            "contrato_publico": {
+                "meses_faturados": sum(1 for p in reais if vals[p] > 0),
+                "meses_medidos": len(reais),
+                "total_real": round(sum(vals.values()), 2),
+                "media_ultimos_6": round(_media([vals[p] for p in ult6]), 2),
+                "nomes_no_erp": c.get("nomes_no_erp", []),
+            },
+            "nota": "Faturamento por mês de emissão da nota (ERP). Projeção: média dos últimos 6 meses reais.",
+        })
+    resid = {p: round(total_real[p] - soma_pub[p], 2) for p in reais}
+    media_resid = round(_media([resid[p] for p in ult6]), 2)
+    linhas.append({
+        "id": "rec_demais.avulsos_e_demais_clientes",
+        "nome": "Avulsos e demais clientes (diferença para o DRE)",
+        "base": {p: (resid[p] if p in resid else media_resid) for p in periodos},
+        "estimado": {},
+        "nota": ("Real = Demais receitas do DRE − órgãos públicos listados acima (inclui clientes avulsos, "
+                 "intermitentes e diferenças de data entre ERP e DRE). Projeção: média dos últimos 6 meses reais."),
+    })
+    grupo["nome"] = "Contratos públicos e demais receitas"
+    grupo["linhas"] = linhas
+    grupo["fonte"] = fonte
+    modelo["metodologia"] = [t for t in modelo.get("metodologia", []) if not t.startswith("Receita projetada")] + [
+        "Receita projetada = clientes privados recorrentes (Roteiro) + contratos públicos (faturamento por órgão no ERP, "
+        "média dos últimos 6 meses; órgão com menos de 3 meses faturados nesse período fica 0) + avulsos (média) + ajuste.",
+    ]
+    return recalcular_resumo(modelo)
+
+
 def normalize_orcamento(
     meses: list[dict],
     contas_detalhadas: list[dict] | None = None,
@@ -635,6 +752,9 @@ def normalize_orcamento(
     modelo_dre = None
     if modelo_dre_inputs:
         modelo_dre = _build_modelo_dre(agrupado, contratos_novos or [], modelo_dre_inputs)
+        if modelo_dre_inputs.get("clientes_publicos"):
+            modelo_dre = detalhar_demais_receitas(
+                modelo_dre, modelo_dre_inputs["clientes_publicos"], modelo_dre_inputs.get("fonte_publicos"))
 
     return {
         "serie_mensal": serie,

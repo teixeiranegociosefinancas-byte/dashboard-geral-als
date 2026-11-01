@@ -497,3 +497,8 @@ tr:hover td {
   .main { padding: 16px 14px; min-width: 0; width: 100%; }
   .orc-cell input { width: 92px; }
 }
+
+.orc-bar-head { font-size: 10px; text-transform: uppercase; letter-spacing: .04em; color: var(--text-faint); border-bottom: 1px solid var(--border); padding-bottom: 6px; }
+.orc-sw-hatch { background: repeating-linear-gradient(45deg, rgba(217,89,38,.95) 0 3px, rgba(217,89,38,.25) 3px 6px); }
+.orc-bar-media { font-size: 11px; margin-top: 1px; }
+@media (max-width: 800px) { .orc-bar-head { display: none; } }
