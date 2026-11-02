@@ -844,34 +844,122 @@ function DetalheRh({ d }) {
   );
 }
 
+const FLUXO_LS = "fluxo_ajustes_v1";
+
+function carregarAjustes(versao) {
+  try {
+    const o = JSON.parse(localStorage.getItem(FLUXO_LS) || "null");
+    if (o && o.versao === versao) return o;
+  } catch (e) { /* sem localStorage: segue com o padrão */ }
+  return { versao, contas: {}, bancos: {}, aliquota: null };
+}
+
+function NumInput({ value, onChange, width = 92, destaque }) {
+  return (
+    <input
+      type="number"
+      step="any"
+      value={Math.round((Number(value) || 0) * 100) / 100}
+      onChange={(e) => onChange(e.target.value === "" ? 0 : Number(e.target.value))}
+      style={{
+        width, padding: "2px 4px", textAlign: "right", color: "inherit", background: "rgba(250,204,21,0.08)",
+        border: "1px solid " + (destaque ? "#f87171" : "#475569"), borderRadius: 4, font: "inherit",
+      }}
+    />
+  );
+}
+
 function DetalheFluxo({ d }) {
-  const resumo = d.resumo_mensal || [];
-  const bancos = d.por_banco || [];
-  const contas = d.por_conta || [];
-  const periodos = resumo.map((m) => m.period);
-  const grupos = [];
-  contas.forEach((c) => {
-    if (!grupos.includes(c.grupo)) grupos.push(c.grupo);
+  const versao = d.versao || "sem-versao";
+  const [aj, setAj] = useState(() => carregarAjustes(versao));
+  useEffect(() => {
+    try { localStorage.setItem(FLUXO_LS, JSON.stringify(aj)); } catch (e) { /* ignora */ }
+  }, [aj]);
+
+  const contasBase = d.por_conta || [];
+  const periodos = (d.resumo_mensal || []).map((m) => m.period);
+  const aliquota = aj.aliquota ?? d.premissas?.aliquota_imposto ?? 0.1633;
+  const chave = (c) => c.grupo + "|" + c.conta;
+
+  // valores efetivos de cada conta (o ajuste do usuário sobrepõe o projetado)
+  const contas = contasBase.map((c) => ({ ...c, valores: aj.contas[chave(c)] || c.valores }));
+  const soma = (filtro) => periodos.map((_, i) => contas.filter(filtro).reduce((s, c) => s + (c.valores[i] || 0), 0));
+  const rec = soma((c) => c.grupo === "Recebimentos operacionais");
+  const nao = soma((c) => c.grupo === "Entradas não operacionais");
+  const soc = soma((c) => c.grupo === "Sócios");
+  const imposto = rec.map((v) => -v * aliquota);
+  const saiSemImposto = soma((c) => !["Recebimentos operacionais", "Entradas não operacionais", "Sócios", "Impostos"].includes(c.grupo));
+  const sai = saiSemImposto.map((v, i) => v + imposto[i]);
+
+  const bancosBase = d.por_banco || [];
+  const bancos = bancosBase.map((b) => {
+    const ed = aj.bancos[b.banco] || {};
+    const si = ed.saldo_inicial ?? b.saldo_inicial;
+    const limite = ed.limite ?? b.limite;
+    const rEnt = ed.rateio_entrada ?? b.rateio_entrada ?? 0;
+    const rSai = ed.rateio_saida ?? b.rateio_saida ?? 0;
+    let s = si;
+    const meses = periodos.map((p, i) => {
+      const entradas = (rec[i] + nao[i]) * rEnt;
+      const saidas = (sai[i] + soc[i]) * rSai;
+      const ini = s;
+      s += entradas + saidas;
+      const situacao = s >= 0 ? "OK" : s + limite >= 0 ? "Usa limite" : "DESCOBERTO";
+      return { period: p, saldo_inicial: ini, entradas, saidas, fluxo: entradas + saidas, saldo_final: s, situacao };
+    });
+    return { banco: b.banco, saldo_inicial: si, limite, rateio_entrada: rEnt, rateio_saida: rSai, meses };
   });
+  const somaEnt = bancos.reduce((s, b) => s + b.rateio_entrada, 0);
+  const somaSai = bancos.reduce((s, b) => s + b.rateio_saida, 0);
+  const saldoInicialTotal = bancos.reduce((s, b) => s + b.saldo_inicial, 0);
+
+  let saldo = saldoInicialTotal;
+  const resumo = periodos.map((p, i) => {
+    const fluxo = rec[i] + nao[i] + sai[i] + soc[i];
+    const ini = saldo;
+    saldo += fluxo;
+    return { period: p, saldo_inicial: ini, recebimentos: rec[i], nao_operacionais: nao[i], saidas_operacionais: sai[i], socios: soc[i], fluxo_liquido: fluxo, saldo_final: saldo };
+  });
+  const fluxoTotal = resumo.reduce((s, m) => s + m.fluxo_liquido, 0);
+  const menor = resumo.reduce((a, m) => (m.saldo_final < a.saldo_final ? m : a), resumo[0] || { saldo_final: 0, period: "" });
+
+  const grupos = [];
+  contas.forEach((c) => { if (!grupos.includes(c.grupo)) grupos.push(c.grupo); });
   const corSituacao = (s) => (s === "OK" ? "inherit" : "#f87171");
+  const editado = Object.keys(aj.contas).length + Object.keys(aj.bancos).length + (aj.aliquota !== null ? 1 : 0) > 0;
+
+  const setConta = (c, i, v) => {
+    const vals = [...(aj.contas[chave(c)] || c.valores)];
+    vals[i] = v;
+    setAj({ ...aj, contas: { ...aj.contas, [chave(c)]: vals } });
+  };
+  const setContaTodos = (c, v) => setAj({ ...aj, contas: { ...aj.contas, [chave(c)]: periodos.map(() => v) } });
+  const setBanco = (nome, campo, v) => setAj({ ...aj, bancos: { ...aj.bancos, [nome]: { ...(aj.bancos[nome] || {}), [campo]: v } } });
+  const restaurar = () => setAj({ versao, contas: {}, bancos: {}, aliquota: null });
+
   return (
     <>
+      <p className="page-subtitle" style={{ marginBottom: "0.75rem" }}>
+        Campos em amarelo são editáveis e recalculam tudo na hora. Os ajustes ficam salvos neste navegador
+        (não alteram os dados enviados pelo Claude).{" "}
+        {editado && (<button onClick={restaurar} style={{ marginLeft: 8 }}>Restaurar valores projetados</button>)}
+      </p>
       <div className="grid">
         <div className="card">
           <div className="card-label">Saldo inicial{d.saldo_inicial_data ? ` (${d.saldo_inicial_data})` : ""}</div>
-          <div className="card-value cyan">{fmtMoeda(d.saldo_inicial)}</div>
+          <div className="card-value cyan">{fmtMoeda(saldoInicialTotal)}</div>
         </div>
         <div className="card">
           <div className="card-label">Saldo final projetado</div>
-          <div className="card-value cyan">{fmtMoeda(d.saldo_final)}</div>
+          <div className="card-value cyan">{fmtMoeda(saldo)}</div>
         </div>
         <div className="card">
           <div className="card-label">Fluxo líquido no período</div>
-          <div className="card-value cyan">{fmtMoeda(d.fluxo_total)}</div>
+          <div className="card-value cyan">{fmtMoeda(fluxoTotal)}</div>
         </div>
         <div className="card">
-          <div className="card-label">Menor saldo{d.mes_menor_saldo ? ` (${d.mes_menor_saldo})` : ""}</div>
-          <div className="card-value cyan">{fmtMoeda(d.menor_saldo)}</div>
+          <div className="card-label">Menor saldo{menor.period ? ` (${menor.period})` : ""}</div>
+          <div className="card-value cyan">{fmtMoeda(menor.saldo_final)}</div>
         </div>
       </div>
 
@@ -893,26 +981,44 @@ function DetalheFluxo({ d }) {
               <td>{fmtMoeda(m.saidas_operacionais)}</td>
               <td>{fmtMoeda(m.socios)}</td>
               <td>{fmtMoeda(m.fluxo_liquido)}</td>
-              <td>{fmtMoeda(m.saldo_final)}</td>
+              <td style={{ color: m.saldo_final < 0 ? "#f87171" : "inherit" }}>{fmtMoeda(m.saldo_final)}</td>
             </tr>
           ))}
         </tbody>
       </table>
 
-      <div className="section-title">Por banco — saldo final de cada mês</div>
+      <div className="section-title">Por banco — premissas (editáveis)</div>
       <table>
         <thead>
-          <tr>
-            <th>Banco</th><th>Saldo inicial</th><th>Limite</th>
-            {periodos.map((p) => (<th key={p}>{p}</th>))}
-          </tr>
+          <tr><th>Banco</th><th>Saldo inicial</th><th>Limite de crédito</th><th>% das entradas</th><th>% das saídas</th></tr>
         </thead>
         <tbody>
           {bancos.map((b) => (
             <tr key={b.banco}>
               <td>{b.banco}</td>
-              <td>{fmtMoeda(b.saldo_inicial)}</td>
-              <td>{fmtMoeda(b.limite)}</td>
+              <td><NumInput value={b.saldo_inicial} onChange={(v) => setBanco(b.banco, "saldo_inicial", v)} /></td>
+              <td><NumInput value={b.limite} onChange={(v) => setBanco(b.banco, "limite", v)} /></td>
+              <td><NumInput width={64} value={b.rateio_entrada * 100} onChange={(v) => setBanco(b.banco, "rateio_entrada", v / 100)} destaque={Math.abs(somaEnt - 1) > 0.001} /></td>
+              <td><NumInput width={64} value={b.rateio_saida * 100} onChange={(v) => setBanco(b.banco, "rateio_saida", v / 100)} destaque={Math.abs(somaSai - 1) > 0.001} /></td>
+            </tr>
+          ))}
+        </tbody>
+      </table>
+      {(Math.abs(somaEnt - 1) > 0.001 || Math.abs(somaSai - 1) > 0.001) && (
+        <p className="page-subtitle" style={{ color: "#f87171" }}>
+          Atenção: os percentuais por banco precisam somar 100% (entradas {(somaEnt * 100).toFixed(1)}%, saídas {(somaSai * 100).toFixed(1)}%).
+        </p>
+      )}
+
+      <div className="section-title">Por banco — saldo final de cada mês</div>
+      <table>
+        <thead>
+          <tr><th>Banco</th>{periodos.map((p) => (<th key={p}>{p}</th>))}</tr>
+        </thead>
+        <tbody>
+          {bancos.map((b) => (
+            <tr key={b.banco}>
+              <td>{b.banco}</td>
               {b.meses.map((m) => (
                 <td key={m.period} style={{ color: corSituacao(m.situacao) }} title={m.situacao}>{fmtMoeda(m.saldo_final)}</td>
               ))}
@@ -929,14 +1035,14 @@ function DetalheFluxo({ d }) {
         <tbody>
           {bancos.map((b) => {
             const ent = b.meses.reduce((s, m) => s + m.entradas, 0);
-            const sai = b.meses.reduce((s, m) => s + m.saidas, 0);
+            const sa = b.meses.reduce((s, m) => s + m.saidas, 0);
             const pior = b.meses.find((m) => m.situacao === "DESCOBERTO") || b.meses.find((m) => m.situacao !== "OK");
             return (
               <tr key={b.banco}>
                 <td>{b.banco}</td>
                 <td>{fmtMoeda(ent)}</td>
-                <td>{fmtMoeda(sai)}</td>
-                <td>{fmtMoeda(ent + sai)}</td>
+                <td>{fmtMoeda(sa)}</td>
+                <td>{fmtMoeda(ent + sa)}</td>
                 <td style={{ color: pior ? "#f87171" : "inherit" }}>{pior ? pior.situacao : "OK"}</td>
               </tr>
             );
@@ -944,30 +1050,49 @@ function DetalheFluxo({ d }) {
         </tbody>
       </table>
 
-      <div className="section-title">Por conta contábil</div>
+      <div className="section-title">Por conta contábil (edite os valores em amarelo)</div>
+      <p className="page-subtitle">
+        Alíquota de impostos sobre a receita bruta:{" "}
+        <NumInput width={64} value={aliquota * 100} onChange={(v) => setAj({ ...aj, aliquota: v / 100 })} /> %
+      </p>
       <table>
         <thead>
           <tr>
             <th>Conta</th>
             {periodos.map((p) => (<th key={p}>{p}</th>))}
             <th>Total</th>
+            <th>Todos os meses</th>
           </tr>
         </thead>
         <tbody>
           {grupos.map((g) => {
             const itens = contas.filter((c) => c.grupo === g);
-            const tot = periodos.map((_, i) => itens.reduce((s, c) => s + (c.valores[i] || 0), 0));
+            const calc = g === "Impostos";
+            const tot = periodos.map((_, i) => (calc ? imposto[i] : itens.reduce((s, c) => s + (c.valores[i] || 0), 0)));
             return [
               <tr key={g}>
                 <td><strong>{g}</strong></td>
                 {tot.map((v, i) => (<td key={i}><strong>{fmtMoeda(v)}</strong></td>))}
                 <td><strong>{fmtMoeda(tot.reduce((s, v) => s + v, 0))}</strong></td>
+                <td></td>
               </tr>,
               ...itens.map((c) => (
                 <tr key={g + c.conta}>
                   <td style={{ paddingLeft: "1.5rem" }}>{c.conta}</td>
-                  {c.valores.map((v, i) => (<td key={i}>{fmtMoeda(v)}</td>))}
-                  <td>{fmtMoeda(c.total)}</td>
+                  {calc
+                    ? imposto.map((v, i) => (<td key={i}>{fmtMoeda(v)}</td>))
+                    : c.valores.map((v, i) => (<td key={i}><NumInput value={v} onChange={(x) => setConta(c, i, x)} /></td>))}
+                  <td>{fmtMoeda(calc ? imposto.reduce((s, v) => s + v, 0) : c.valores.reduce((s, v) => s + (v || 0), 0))}</td>
+                  <td>{calc ? "" : (
+                    <input
+                      type="number"
+                      step="any"
+                      placeholder="aplicar"
+                      style={{ width: 80, padding: "2px 4px", textAlign: "right", color: "inherit", background: "transparent", border: "1px dashed #475569", borderRadius: 4, font: "inherit" }}
+                      onBlur={(e) => { if (e.target.value !== "") { setContaTodos(c, Number(e.target.value)); e.target.value = ""; } }}
+                      onKeyDown={(e) => { if (e.key === "Enter") e.target.blur(); }}
+                    />
+                  )}</td>
                 </tr>
               )),
             ];
