@@ -52,7 +52,8 @@ export default function App() {
           </div>
         )}
         {view === "geral" && <VisaoGeral onNavigate={navigate} />}
-        {AREAS.some((a) => a.key === view) && <AreaDetalhe area={view} />}
+        {/* key={view}: remonta a página ao trocar de área — sem isso, no 1º render a área nova recebia os dados da anterior e a tela quebrava (01/11/2026) */}
+        {AREAS.some((a) => a.key === view) && <AreaDetalhe key={view} area={view} />}
         {view === "upload" && <Upload />}
       </main>
     </div>

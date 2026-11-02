@@ -20,14 +20,19 @@ function DetalheComercial({ d }) {
             <div className="card-value cyan">{fmtMoeda(d.meta_mensal)}</div>
           </div>
         )}
-        <div className="card">
-          <div className="card-label">Meta total (por serviço)</div>
-          <div className="card-value cyan">{fmtMoeda(d.meta_total)}</div>
-        </div>
-        <div className="card">
-          <div className="card-label">Atingimento (meta por serviço)</div>
-          <div className="card-value cyan">{d.atingimento_pct !== null ? fmtPct(d.atingimento_pct) : "—"}</div>
-        </div>
+        {/* meta por serviço nunca foi definida (vinha R$ 0 e "—"): só mostra quando existir */}
+        {d.meta_total > 0 && (
+          <>
+            <div className="card">
+              <div className="card-label">Meta total (por serviço)</div>
+              <div className="card-value cyan">{fmtMoeda(d.meta_total)}</div>
+            </div>
+            <div className="card">
+              <div className="card-label">Atingimento (meta por serviço)</div>
+              <div className="card-value cyan">{d.atingimento_pct !== null ? fmtPct(d.atingimento_pct) : "—"}</div>
+            </div>
+          </>
+        )}
       </div>
       {d.meta_mensal_base && (
         <p className="page-subtitle" style={{ marginTop: "-0.5rem", marginBottom: "0.75rem" }}>{d.meta_mensal_base}</p>
@@ -675,6 +680,8 @@ function DetalheCapex({ d }) {
         </div>
       </div>
 
+      {/* texto abaixo explica o zero do balancete 2025; só vale enquanto o valor for zero */}
+      {!d.capex_capitalizado && (
       <details className="explicacoes">
         <summary>Explicações</summary>
 
@@ -704,6 +711,7 @@ function DetalheCapex({ d }) {
           </p>
         </div>
       </details>
+      )}
 
       <p className="page-subtitle" style={{ marginTop: "0.5rem" }}>{d.aviso}</p>
     </>
@@ -853,11 +861,15 @@ export default function AreaDetalhe({ area }) {
   const [erro, setErro] = useState(null);
 
   useEffect(() => {
+    let ativo = true; // ignora resposta atrasada de uma área que o usuário já saiu
     setDoc(null);
     setErro(null);
     fetchLatest(area)
-      .then(setDoc)
-      .catch((e) => setErro(e.message));
+      .then((d) => ativo && setDoc(d))
+      .catch((e) => ativo && setErro(e.message));
+    return () => {
+      ativo = false;
+    };
   }, [area]);
 
   const Renderer = RENDERERS[area];

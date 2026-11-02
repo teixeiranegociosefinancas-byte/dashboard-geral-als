@@ -3,8 +3,13 @@ import { fetchVisaoGeral } from "../api.js";
 import KpiCard from "../components/KpiCard.jsx";
 import { fmtMoeda, fmtNumero, fmtPct, fmtData, fmtDataSimples } from "../format.js";
 
-function CardsComercial({ doc, onClick }) {
+function CardsComercial({ doc, financeiro, onClick }) {
   const d = doc?.data;
+  // atingimento = receita bruta do último mês fechado do DRE ÷ meta mensal (a meta "por serviço" nunca foi definida)
+  const serieFin = financeiro?.data?.serie_mensal || [];
+  const ultimoMes = serieFin[serieFin.length - 1];
+  const atingimento =
+    d?.meta_mensal && ultimoMes?.receita_bruta ? (100 * ultimoMes.receita_bruta) / d.meta_mensal : null;
   return (
     <>
       <KpiCard
@@ -15,9 +20,10 @@ function CardsComercial({ doc, onClick }) {
         onClick={onClick}
       />
       <KpiCard
-        label="Atingimento da meta"
-        value={d && d.atingimento_pct !== null ? fmtPct(d.atingimento_pct) : "—"}
+        label="Atingimento da meta mensal"
+        value={atingimento !== null ? fmtPct(atingimento) : "—"}
         color="cyan"
+        meta={atingimento !== null ? `Receita bruta de ${ultimoMes.period} ÷ meta mensal` : undefined}
         onClick={onClick}
       />
       {d && d.meta_mensal !== null && d.meta_mensal !== undefined && (
@@ -122,21 +128,28 @@ function CardsFinanceiro({ doc, onClick }) {
 
 function CardsOrcamento({ doc, onClick }) {
   const d = doc?.data;
-  const proximo = d?.projecao_proximo_mes;
-  const lucroNegativo = proximo && proximo.lucro_liquido !== null && proximo.lucro_liquido < 0;
+  // Mesmos números da tela Orçamento (modelo conta × mês). A antiga "projeção do próximo mês"
+  // usava outro método e contradizia o Orçamento — removida em 01/11/2026.
+  const resumo = d?.modelo_dre?.resumo_base;
+  const resultadoNegativo = resumo && resumo.resultado_ano < 0;
   return (
     <>
       <KpiCard
-        label="Lucro líquido projetado (próx. mês)"
-        value={proximo ? fmtMoeda(proximo.lucro_liquido) : "sem dados"}
-        color={lucroNegativo ? "red" : "rose"}
-        meta={doc ? `Atualizado em ${fmtData(doc.ingested_at)} — estimativa, não é meta da diretoria` : "peça pro Claude atualizar"}
+        label={`Resultado previsto no ano${d?.modelo_dre?.ano ? ` (${d.modelo_dre.ano})` : ""}`}
+        value={resumo ? fmtMoeda(resumo.resultado_ano) : "sem dados"}
+        color={resultadoNegativo ? "red" : "rose"}
+        meta={
+          resumo
+            ? `Inclui ${fmtMoeda(resumo.ajuste_receita_total)} de meta de venda adicional · real até ${d.modelo_dre.ultimo_mes_real}`
+            : "peça pro Claude atualizar"
+        }
         onClick={onClick}
       />
       <KpiCard
-        label="Receita bruta projetada (próx. mês)"
-        value={proximo ? fmtMoeda(proximo.receita_bruta) : "—"}
+        label="Receita prevista no ano"
+        value={resumo ? fmtMoeda(resumo.receita_ano) : "—"}
         color="rose"
+        meta={doc ? `Atualizado em ${fmtData(doc.ingested_at)} — estimativa, não é meta da diretoria` : undefined}
         onClick={onClick}
       />
       {d && d.cenario_20pct_sobre_ponto_equilibrio && (
@@ -233,7 +246,7 @@ export default function VisaoGeral({ onNavigate }) {
 
       {dados && (
         <div className="grid">
-          <CardsComercial doc={dados.comercial} onClick={() => onNavigate("comercial")} />
+          <CardsComercial doc={dados.comercial} financeiro={dados.financeiro} onClick={() => onNavigate("comercial")} />
           <CardsFrota doc={dados.frota} onClick={() => onNavigate("frota")} />
           <CardsOperacional doc={dados.operacional} onClick={() => onNavigate("operacional")} />
           <CardsFinanceiro doc={dados.financeiro} onClick={() => onNavigate("financeiro")} />

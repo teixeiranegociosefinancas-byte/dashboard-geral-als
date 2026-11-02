@@ -28,6 +28,13 @@ nesta rodada — "balanço está meio que inventado pela contabilidade"):
   + Depreciação (linha 88) + Juros (linhas 84+85 — bancários e de mora).
   Usa só campos dessa MESMA planilha DRE interna já validada — nenhum dado
   do Balanço/Balancete entra aqui.
+  AJUSTE 01/11/2026 (opção B escolhida pelo usuário, padrão CVM 527/2012):
+  a linha 178 soma de volta os 16,33% INTEIROS de impostos, mas ISS, PIS e
+  COFINS são imposto sobre venda (dedução da receita), não imposto de renda.
+  Agora subtrai `impostos_sobre_venda` do mês = ISS devido + PIS + COFINS
+  estimados (seções "IMPOSTOS FEDERAIS ESTIMADOS" e "DETALHAMENTO DOS
+  IMPOSTOS RETIDOS" da mesma aba). Retiradas de sócios e adiantamentos
+  continuam fora do custo, como já decidido.
 
 Margem de contribuição / ponto de equilíbrio — adicionados em 18/09/2026
 (pedido explícito do usuário, "o que eu pedi foi margem de contribuição
@@ -136,7 +143,8 @@ def normalize_financeiro(
         if lucro_antes_ir_e_socios is not None:
             depreciacao = float(m.get("depreciacao") or 0)
             juros = float(m.get("juros") or 0)
-            ebitda = round(float(lucro_antes_ir_e_socios) + depreciacao + juros, 2)
+            impostos_sobre_venda = float(m.get("impostos_sobre_venda") or 0)
+            ebitda = round(float(lucro_antes_ir_e_socios) - impostos_sobre_venda + depreciacao + juros, 2)
             ebitda_pct_receita_liquida = round(100 * ebitda / receita_liquida, 1) if receita_liquida else None
             ebitda_acumulado += ebitda
             tem_ebitda = True
@@ -248,9 +256,10 @@ def normalize_financeiro(
         ),
         "aviso_roi_ebitda": (
             "ROI (sobre o custo) = (Receita Líquida − Custo Total) ÷ Custo Total, com Custo Total = Receita Líquida − Lucro Líquido. EBITDA = Lucro antes do Imposto de "
-            "Renda e de Movimentos com Sócios (linha 178 da DRE) + Depreciação + Juros — "
-            "todos campos da mesma planilha DRE interna já validada, sem usar nenhum dado "
-            "do Balanço Patrimonial/Balancete."
+            "Renda e de Movimentos com Sócios (linha 178 da DRE) − impostos sobre venda (ISS, PIS e "
+            "COFINS estimados no próprio DRE) + Depreciação + Juros — padrão CVM 527/2012: só o "
+            "imposto de renda (IRPJ/CSLL) volta para o EBITDA. Todos campos da mesma planilha DRE "
+            "interna já validada, sem usar nenhum dado do Balanço Patrimonial/Balancete."
         ),
     }
 
