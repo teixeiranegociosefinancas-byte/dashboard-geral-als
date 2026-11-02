@@ -845,7 +845,15 @@ function DetalheRh({ d }) {
 }
 
 function DetalheFluxo({ d }) {
-  const serie = d.serie_mensal || [];
+  const resumo = d.resumo_mensal || [];
+  const bancos = d.por_banco || [];
+  const contas = d.por_conta || [];
+  const periodos = resumo.map((m) => m.period);
+  const grupos = [];
+  contas.forEach((c) => {
+    if (!grupos.includes(c.grupo)) grupos.push(c.grupo);
+  });
+  const corSituacao = (s) => (s === "OK" ? "inherit" : "#f87171");
   return (
     <>
       <div className="grid">
@@ -862,33 +870,108 @@ function DetalheFluxo({ d }) {
           <div className="card-value cyan">{fmtMoeda(d.fluxo_total)}</div>
         </div>
         <div className="card">
-          <div className="card-label">Menor saldo no período</div>
+          <div className="card-label">Menor saldo{d.mes_menor_saldo ? ` (${d.mes_menor_saldo})` : ""}</div>
           <div className="card-value cyan">{fmtMoeda(d.menor_saldo)}</div>
         </div>
       </div>
 
-      <div className="section-title">Projeção de caixa — mês a mês</div>
+      <div className="section-title">Consolidado — mês a mês</div>
       <table>
         <thead>
           <tr>
-            <th>Mês</th><th>Saldo inicial</th><th>Receita bruta</th><th>Impostos</th>
-            <th>Custos</th><th>13º</th><th>Retirada</th><th>Fluxo líquido</th><th>Saldo final</th>
+            <th>Mês</th><th>Saldo inicial</th><th>Recebimentos</th><th>Não operacionais</th>
+            <th>Saídas operacionais</th><th>Sócios</th><th>Fluxo líquido</th><th>Saldo final</th>
           </tr>
         </thead>
         <tbody>
-          {serie.map((m) => (
+          {resumo.map((m) => (
             <tr key={m.period}>
               <td>{m.period}</td>
               <td>{fmtMoeda(m.saldo_inicial)}</td>
-              <td>{fmtMoeda(m.receita_bruta)}</td>
-              <td>{fmtMoeda(m.impostos)}</td>
-              <td>{fmtMoeda(m.custos)}</td>
-              <td>{fmtMoeda(m.decimo_terceiro)}</td>
-              <td>{fmtMoeda(m.retirada)}</td>
+              <td>{fmtMoeda(m.recebimentos)}</td>
+              <td>{fmtMoeda(m.nao_operacionais)}</td>
+              <td>{fmtMoeda(m.saidas_operacionais)}</td>
+              <td>{fmtMoeda(m.socios)}</td>
               <td>{fmtMoeda(m.fluxo_liquido)}</td>
               <td>{fmtMoeda(m.saldo_final)}</td>
             </tr>
           ))}
+        </tbody>
+      </table>
+
+      <div className="section-title">Por banco — saldo final de cada mês</div>
+      <table>
+        <thead>
+          <tr>
+            <th>Banco</th><th>Saldo inicial</th><th>Limite</th>
+            {periodos.map((p) => (<th key={p}>{p}</th>))}
+          </tr>
+        </thead>
+        <tbody>
+          {bancos.map((b) => (
+            <tr key={b.banco}>
+              <td>{b.banco}</td>
+              <td>{fmtMoeda(b.saldo_inicial)}</td>
+              <td>{fmtMoeda(b.limite)}</td>
+              {b.meses.map((m) => (
+                <td key={m.period} style={{ color: corSituacao(m.situacao) }} title={m.situacao}>{fmtMoeda(m.saldo_final)}</td>
+              ))}
+            </tr>
+          ))}
+        </tbody>
+      </table>
+
+      <div className="section-title">Por banco — entradas e saídas do período</div>
+      <table>
+        <thead>
+          <tr><th>Banco</th><th>Entradas</th><th>Saídas</th><th>Fluxo</th><th>Situação (pior mês)</th></tr>
+        </thead>
+        <tbody>
+          {bancos.map((b) => {
+            const ent = b.meses.reduce((s, m) => s + m.entradas, 0);
+            const sai = b.meses.reduce((s, m) => s + m.saidas, 0);
+            const pior = b.meses.find((m) => m.situacao === "DESCOBERTO") || b.meses.find((m) => m.situacao !== "OK");
+            return (
+              <tr key={b.banco}>
+                <td>{b.banco}</td>
+                <td>{fmtMoeda(ent)}</td>
+                <td>{fmtMoeda(sai)}</td>
+                <td>{fmtMoeda(ent + sai)}</td>
+                <td style={{ color: pior ? "#f87171" : "inherit" }}>{pior ? pior.situacao : "OK"}</td>
+              </tr>
+            );
+          })}
+        </tbody>
+      </table>
+
+      <div className="section-title">Por conta contábil</div>
+      <table>
+        <thead>
+          <tr>
+            <th>Conta</th>
+            {periodos.map((p) => (<th key={p}>{p}</th>))}
+            <th>Total</th>
+          </tr>
+        </thead>
+        <tbody>
+          {grupos.map((g) => {
+            const itens = contas.filter((c) => c.grupo === g);
+            const tot = periodos.map((_, i) => itens.reduce((s, c) => s + (c.valores[i] || 0), 0));
+            return [
+              <tr key={g}>
+                <td><strong>{g}</strong></td>
+                {tot.map((v, i) => (<td key={i}><strong>{fmtMoeda(v)}</strong></td>))}
+                <td><strong>{fmtMoeda(tot.reduce((s, v) => s + v, 0))}</strong></td>
+              </tr>,
+              ...itens.map((c) => (
+                <tr key={g + c.conta}>
+                  <td style={{ paddingLeft: "1.5rem" }}>{c.conta}</td>
+                  {c.valores.map((v, i) => (<td key={i}>{fmtMoeda(v)}</td>))}
+                  <td>{fmtMoeda(c.total)}</td>
+                </tr>
+              )),
+            ];
+          })}
         </tbody>
       </table>
 
