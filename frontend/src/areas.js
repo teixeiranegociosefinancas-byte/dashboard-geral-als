@@ -7,6 +7,7 @@ export const AREAS = [
   { key: "rh", label: "RH / DP", color: "indigo" },
   { key: "opex", label: "OPEX", color: "teal" },
   { key: "capex", label: "CAPEX", color: "orange" },
+  { key: "fluxo", label: "Fluxo de Caixa", color: "cyan" },
 ];
 
 export function areaLabel(key) {

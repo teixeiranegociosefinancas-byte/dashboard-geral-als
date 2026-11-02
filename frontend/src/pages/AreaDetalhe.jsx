@@ -844,6 +844,61 @@ function DetalheRh({ d }) {
   );
 }
 
+function DetalheFluxo({ d }) {
+  const serie = d.serie_mensal || [];
+  return (
+    <>
+      <div className="grid">
+        <div className="card">
+          <div className="card-label">Saldo inicial{d.saldo_inicial_data ? ` (${d.saldo_inicial_data})` : ""}</div>
+          <div className="card-value cyan">{fmtMoeda(d.saldo_inicial)}</div>
+        </div>
+        <div className="card">
+          <div className="card-label">Saldo final projetado</div>
+          <div className="card-value cyan">{fmtMoeda(d.saldo_final)}</div>
+        </div>
+        <div className="card">
+          <div className="card-label">Fluxo líquido no período</div>
+          <div className="card-value cyan">{fmtMoeda(d.fluxo_total)}</div>
+        </div>
+        <div className="card">
+          <div className="card-label">Menor saldo no período</div>
+          <div className="card-value cyan">{fmtMoeda(d.menor_saldo)}</div>
+        </div>
+      </div>
+
+      <div className="section-title">Projeção de caixa — mês a mês</div>
+      <table>
+        <thead>
+          <tr>
+            <th>Mês</th><th>Saldo inicial</th><th>Receita bruta</th><th>Impostos</th>
+            <th>Custos</th><th>13º</th><th>Retirada</th><th>Fluxo líquido</th><th>Saldo final</th>
+          </tr>
+        </thead>
+        <tbody>
+          {serie.map((m) => (
+            <tr key={m.period}>
+              <td>{m.period}</td>
+              <td>{fmtMoeda(m.saldo_inicial)}</td>
+              <td>{fmtMoeda(m.receita_bruta)}</td>
+              <td>{fmtMoeda(m.impostos)}</td>
+              <td>{fmtMoeda(m.custos)}</td>
+              <td>{fmtMoeda(m.decimo_terceiro)}</td>
+              <td>{fmtMoeda(m.retirada)}</td>
+              <td>{fmtMoeda(m.fluxo_liquido)}</td>
+              <td>{fmtMoeda(m.saldo_final)}</td>
+            </tr>
+          ))}
+        </tbody>
+      </table>
+
+      <p className="page-subtitle" style={{ marginTop: "0.5rem" }}>
+        {d.aviso}
+      </p>
+    </>
+  );
+}
+
 const RENDERERS = {
   comercial: DetalheComercial,
   frota: DetalheFrota,
@@ -854,6 +909,7 @@ const RENDERERS = {
   rh: DetalheRh,
   opex: DetalheOpex,
   capex: DetalheCapex,
+  fluxo: DetalheFluxo,
 };
 
 export default function AreaDetalhe({ area }) {
