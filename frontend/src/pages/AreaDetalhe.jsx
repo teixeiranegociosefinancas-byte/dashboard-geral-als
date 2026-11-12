@@ -844,7 +844,7 @@ function DetalheRh({ d }) {
   );
 }
 
-const FLUXO_LS = "fluxo_ajustes_v1";
+const FLUXO_LS = "fluxo_ajustes_v2";
 
 function carregarAjustes(versao) {
   try {
@@ -869,9 +869,28 @@ function NumInput({ value, onChange, width = 92, destaque }) {
   );
 }
 
+function Ajuda({ children }) {
+  return (
+    <p className="page-subtitle" style={{ margin: "0.25rem 0 0.75rem", fontSize: "0.85rem", opacity: 0.85 }}>{children}</p>
+  );
+}
+
+const ORDEM_GRUPOS = [
+  "Receita geral", "Custos e despesas gerais", "Custos com pessoal", "Custos gerais", "Custos tributários",
+  "Entradas não operacionais", "Sócios", "Adiantamentos (não é custo)",
+];
+const AJUDA_GRUPO = {
+  "Receita geral": "Tudo o que a ALS recebe dos clientes. Abre em Receita pública e Receita privada, e cada uma abre nos clientes.",
+  "Custos e despesas gerais": "Gastos administrativos: assessoria, aluguel de imóveis, comunicação, tarifas bancárias etc.",
+  "Custos com pessoal": "Salários, encargos, benefícios, pró-labore e o 13º de nov e dez.",
+  "Custos gerais": "Gastos da operação e da frota: combustível, aluguel de caminhões, manutenção, descartes, locações.",
+  "Custos tributários": "Impostos sobre a receita (alíquota abaixo), IPTU, IPVA, TFF e taxas.",
+};
+
 function DetalheFluxo({ d }) {
   const versao = d.versao || "sem-versao";
   const [aj, setAj] = useState(() => carregarAjustes(versao));
+  const [abertos, setAbertos] = useState({});
   useEffect(() => {
     try { localStorage.setItem(FLUXO_LS, JSON.stringify(aj)); } catch (e) { /* ignora */ }
   }, [aj]);
@@ -879,17 +898,17 @@ function DetalheFluxo({ d }) {
   const contasBase = d.por_conta || [];
   const periodos = (d.resumo_mensal || []).map((m) => m.period);
   const aliquota = aj.aliquota ?? d.premissas?.aliquota_imposto ?? 0.1633;
-  const chave = (c) => c.grupo + "|" + c.conta;
+  const chave = (c) => c.grupo + "|" + (c.subgrupo || "") + "|" + c.conta;
 
-  // valores efetivos de cada conta (o ajuste do usuário sobrepõe o projetado)
+  // valores efetivos (o ajuste do usuário sobrepõe o projetado); o imposto é sempre calculado
   const contas = contasBase.map((c) => ({ ...c, valores: aj.contas[chave(c)] || c.valores }));
-  const soma = (filtro) => periodos.map((_, i) => contas.filter(filtro).reduce((s, c) => s + (c.valores[i] || 0), 0));
-  const rec = soma((c) => c.grupo === "Recebimentos operacionais");
-  const nao = soma((c) => c.grupo === "Entradas não operacionais");
-  const soc = soma((c) => c.grupo === "Sócios");
+  const soma = (tipo) => periodos.map((_, i) => contas.filter((c) => c.tipo === tipo).reduce((s, c) => s + (c.valores[i] || 0), 0));
+  const rec = soma("receita");
+  const nao = soma("nao_op");
+  const soc = soma("socios");
   const imposto = rec.map((v) => -v * aliquota);
-  const saiSemImposto = soma((c) => !["Recebimentos operacionais", "Entradas não operacionais", "Sócios", "Impostos"].includes(c.grupo));
-  const sai = saiSemImposto.map((v, i) => v + imposto[i]);
+  const sai = soma("saida").map((v, i) => v + imposto[i]);
+  const valoresDe = (c) => (c.tipo === "imposto" ? imposto : c.valores);
 
   const bancosBase = d.por_banco || [];
   const bancos = bancosBase.map((b) => {
@@ -907,7 +926,7 @@ function DetalheFluxo({ d }) {
       const situacao = s >= 0 ? "OK" : s + limite >= 0 ? "Usa limite" : "DESCOBERTO";
       return { period: p, saldo_inicial: ini, entradas, saidas, fluxo: entradas + saidas, saldo_final: s, situacao };
     });
-    return { banco: b.banco, saldo_inicial: si, limite, rateio_entrada: rEnt, rateio_saida: rSai, meses };
+    return { banco: b.banco, origem: b.origem_saldo, saldo_inicial: si, limite, rateio_entrada: rEnt, rateio_saida: rSai, meses };
   });
   const somaEnt = bancos.reduce((s, b) => s + b.rateio_entrada, 0);
   const somaSai = bancos.reduce((s, b) => s + b.rateio_saida, 0);
@@ -923,10 +942,10 @@ function DetalheFluxo({ d }) {
   const fluxoTotal = resumo.reduce((s, m) => s + m.fluxo_liquido, 0);
   const menor = resumo.reduce((a, m) => (m.saldo_final < a.saldo_final ? m : a), resumo[0] || { saldo_final: 0, period: "" });
 
-  const grupos = [];
-  contas.forEach((c) => { if (!grupos.includes(c.grupo)) grupos.push(c.grupo); });
   const corSituacao = (s) => (s === "OK" ? "inherit" : "#f87171");
   const editado = Object.keys(aj.contas).length + Object.keys(aj.bancos).length + (aj.aliquota !== null ? 1 : 0) > 0;
+  const alterna = (k) => setAbertos({ ...abertos, [k]: !abertos[k] });
+  const seta = (k) => (abertos[k] ? "▼" : "▶");
 
   const setConta = (c, i, v) => {
     const vals = [...(aj.contas[chave(c)] || c.valores)];
@@ -937,11 +956,72 @@ function DetalheFluxo({ d }) {
   const setBanco = (nome, campo, v) => setAj({ ...aj, bancos: { ...aj.bancos, [nome]: { ...(aj.bancos[nome] || {}), [campo]: v } } });
   const restaurar = () => setAj({ versao, contas: {}, bancos: {}, aliquota: null });
 
+  const somaLinhas = (lista) => periodos.map((_, i) => lista.reduce((s, c) => s + (valoresDe(c)[i] || 0), 0));
+  const totalDe = (vals) => vals.reduce((s, v) => s + (v || 0), 0);
+
+  const linhaConta = (c, recuo) => {
+    const calc = c.tipo === "imposto";
+    return (
+      <tr key={chave(c)}>
+        <td style={{ paddingLeft: recuo }} title={c.nota || ""}>{c.conta}{c.nota ? " ⓘ" : ""}</td>
+        {calc
+          ? imposto.map((v, i) => (<td key={i}>{fmtMoeda(v)}</td>))
+          : c.valores.map((v, i) => (<td key={i}><NumInput value={v} onChange={(x) => setConta(c, i, x)} /></td>))}
+        <td>{fmtMoeda(totalDe(valoresDe(c)))}</td>
+        <td>{calc ? "" : (
+          <input
+            type="number"
+            step="any"
+            placeholder="aplicar"
+            style={{ width: 80, padding: "2px 4px", textAlign: "right", color: "inherit", background: "transparent", border: "1px dashed #475569", borderRadius: 4, font: "inherit" }}
+            onBlur={(e) => { if (e.target.value !== "") { setContaTodos(c, Number(e.target.value)); e.target.value = ""; } }}
+            onKeyDown={(e) => { if (e.key === "Enter") e.target.blur(); }}
+          />
+        )}</td>
+      </tr>
+    );
+  };
+
+  const linhaGrupo = (k, titulo, lista, recuo, forte) => {
+    const tot = somaLinhas(lista);
+    return (
+      <tr key={"g-" + k} onClick={() => alterna(k)} style={{ cursor: "pointer", background: forte ? "rgba(100,116,139,0.18)" : "rgba(100,116,139,0.08)" }}>
+        <td style={{ paddingLeft: recuo }}><strong>{seta(k)} {titulo}</strong> <span style={{ opacity: 0.6, fontSize: "0.8rem" }}>({lista.length})</span></td>
+        {tot.map((v, i) => (<td key={i}><strong>{fmtMoeda(v)}</strong></td>))}
+        <td><strong>{fmtMoeda(totalDe(tot))}</strong></td>
+        <td></td>
+      </tr>
+    );
+  };
+
+  const corpo = [];
+  ORDEM_GRUPOS.forEach((g) => {
+    const itens = contas.filter((c) => c.grupo === g);
+    if (!itens.length) return;
+    corpo.push(linhaGrupo(g, g, itens, 8, true));
+    if (!abertos[g]) return;
+    const subs = [];
+    itens.forEach((c) => { if (c.subgrupo && !subs.includes(c.subgrupo)) subs.push(c.subgrupo); });
+    if (subs.length) {
+      subs.forEach((sg) => {
+        const k = g + "/" + sg;
+        const li = itens.filter((c) => c.subgrupo === sg);
+        corpo.push(linhaGrupo(k, sg, li, 24, false));
+        if (abertos[k]) li.forEach((c) => corpo.push(linhaConta(c, 44)));
+      });
+    } else {
+      itens.forEach((c) => corpo.push(linhaConta(c, 28)));
+    }
+  });
+
+  const pr = d.previsto_realizado;
+
   return (
     <>
-      <p className="page-subtitle" style={{ marginBottom: "0.75rem" }}>
-        Campos em amarelo são editáveis e recalculam tudo na hora. Os ajustes ficam salvos neste navegador
-        (não alteram os dados enviados pelo Claude).{" "}
+      <p className="page-subtitle" style={{ marginBottom: "0.5rem" }}>
+        <strong>Como ler esta tela:</strong> é a projeção do caixa da ALS de nov/2026 a abr/2027. Entradas = o que a ALS recebe; saídas = o que paga.
+        Saldo final do mês = saldo inicial + entradas − saídas. Valores em <span style={{ color: "#f87171" }}>vermelho</span> = caixa negativo ou banco descoberto.
+        Campos em <span style={{ background: "rgba(250,204,21,0.15)", padding: "0 4px" }}>amarelo</span> são editáveis e recalculam tudo na hora (ficam salvos só neste navegador).{" "}
         {editado && (<button onClick={restaurar} style={{ marginLeft: 8 }}>Restaurar valores projetados</button>)}
       </p>
       <div className="grid">
@@ -963,7 +1043,8 @@ function DetalheFluxo({ d }) {
         </div>
       </div>
 
-      <div className="section-title">Consolidado — mês a mês</div>
+      <div className="section-title">1. Consolidado — mês a mês</div>
+      <Ajuda>Resumo do caixa inteiro da ALS, somando todos os bancos. É a linha de baixo de todas as outras tabelas.</Ajuda>
       <table>
         <thead>
           <tr>
@@ -987,10 +1068,35 @@ function DetalheFluxo({ d }) {
         </tbody>
       </table>
 
-      <div className="section-title">Por banco — premissas (editáveis)</div>
+      {pr && (
+        <>
+          <div className="section-title">2. {pr.titulo}</div>
+          <Ajuda>{pr.nota}</Ajuda>
+          <table>
+            <thead>
+              <tr><th>Linha</th><th>Previsto</th><th>Realizado</th><th>Diferença</th></tr>
+            </thead>
+            <tbody>
+              {pr.linhas.map((l) => (
+                <tr key={l.rotulo}>
+                  <td>{l.rotulo}</td>
+                  <td>{fmtMoeda(l.previsto)}</td>
+                  <td>{fmtMoeda(l.realizado)}</td>
+                  <td>{fmtMoeda(l.diferenca)}</td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </>
+      )}
+
+      <div className="section-title">3. Contas bancárias — premissas (editáveis)</div>
+      <Ajuda>
+        Saldo inicial = último extrato de cada banco (as datas são diferentes, veja a origem). Limite = cheque especial. Os percentuais dizem quanto das entradas e das saídas passa por cada banco (estimativa pela movimentação de set/2026) e cada coluna precisa somar 100%.
+      </Ajuda>
       <table>
         <thead>
-          <tr><th>Banco</th><th>Saldo inicial</th><th>Limite de crédito</th><th>% das entradas</th><th>% das saídas</th></tr>
+          <tr><th>Banco</th><th>Saldo inicial</th><th>Limite de crédito</th><th>% das entradas</th><th>% das saídas</th><th>Origem do saldo</th></tr>
         </thead>
         <tbody>
           {bancos.map((b) => (
@@ -1000,6 +1106,7 @@ function DetalheFluxo({ d }) {
               <td><NumInput value={b.limite} onChange={(v) => setBanco(b.banco, "limite", v)} /></td>
               <td><NumInput width={64} value={b.rateio_entrada * 100} onChange={(v) => setBanco(b.banco, "rateio_entrada", v / 100)} destaque={Math.abs(somaEnt - 1) > 0.001} /></td>
               <td><NumInput width={64} value={b.rateio_saida * 100} onChange={(v) => setBanco(b.banco, "rateio_saida", v / 100)} destaque={Math.abs(somaSai - 1) > 0.001} /></td>
+              <td style={{ fontSize: "0.8rem", opacity: 0.8 }}>{b.origem}</td>
             </tr>
           ))}
         </tbody>
@@ -1010,7 +1117,8 @@ function DetalheFluxo({ d }) {
         </p>
       )}
 
-      <div className="section-title">Por banco — saldo final de cada mês</div>
+      <div className="section-title">4. Contas bancárias — saldo final de cada mês</div>
+      <Ajuda>Quanto sobra em cada banco no fim do mês. Como não há transferências entre bancos na projeção, só o consolidado (tabela 1) é confiável; aqui o foco é ver qual banco estoura o limite.</Ajuda>
       <table>
         <thead>
           <tr><th>Banco</th>{periodos.map((p) => (<th key={p}>{p}</th>))}</tr>
@@ -1027,7 +1135,7 @@ function DetalheFluxo({ d }) {
         </tbody>
       </table>
 
-      <div className="section-title">Por banco — entradas e saídas do período</div>
+      <div className="section-title">5. Contas bancárias — entradas e saídas do período</div>
       <table>
         <thead>
           <tr><th>Banco</th><th>Entradas</th><th>Saídas</th><th>Fluxo</th><th>Situação (pior mês)</th></tr>
@@ -1050,7 +1158,10 @@ function DetalheFluxo({ d }) {
         </tbody>
       </table>
 
-      <div className="section-title">Por conta contábil (edite os valores em amarelo)</div>
+      <div className="section-title">6. Receitas e despesas por grupo (clique na seta para abrir o analítico)</div>
+      <Ajuda>
+        Cada grupo abre nas contas (despesas) ou nos clientes (receitas). A receita por cliente é a participação de cada cliente nas vendas de mar–ago (P&A) aplicada à receita projetada; a divisão público/privado foi feita pelo nome do cliente e precisa da sua confirmação.
+      </Ajuda>
       <p className="page-subtitle">
         Alíquota de impostos sobre a receita bruta:{" "}
         <NumInput width={64} value={aliquota * 100} onChange={(v) => setAj({ ...aj, aliquota: v / 100 })} /> %
@@ -1058,49 +1169,30 @@ function DetalheFluxo({ d }) {
       <table>
         <thead>
           <tr>
-            <th>Conta</th>
+            <th>Grupo / conta / cliente</th>
             {periodos.map((p) => (<th key={p}>{p}</th>))}
             <th>Total</th>
             <th>Todos os meses</th>
           </tr>
         </thead>
-        <tbody>
-          {grupos.map((g) => {
-            const itens = contas.filter((c) => c.grupo === g);
-            const calc = g === "Impostos";
-            const tot = periodos.map((_, i) => (calc ? imposto[i] : itens.reduce((s, c) => s + (c.valores[i] || 0), 0)));
-            return [
-              <tr key={g}>
-                <td><strong>{g}</strong></td>
-                {tot.map((v, i) => (<td key={i}><strong>{fmtMoeda(v)}</strong></td>))}
-                <td><strong>{fmtMoeda(tot.reduce((s, v) => s + v, 0))}</strong></td>
-                <td></td>
-              </tr>,
-              ...itens.map((c) => (
-                <tr key={g + c.conta}>
-                  <td style={{ paddingLeft: "1.5rem" }}>{c.conta}</td>
-                  {calc
-                    ? imposto.map((v, i) => (<td key={i}>{fmtMoeda(v)}</td>))
-                    : c.valores.map((v, i) => (<td key={i}><NumInput value={v} onChange={(x) => setConta(c, i, x)} /></td>))}
-                  <td>{fmtMoeda(calc ? imposto.reduce((s, v) => s + v, 0) : c.valores.reduce((s, v) => s + (v || 0), 0))}</td>
-                  <td>{calc ? "" : (
-                    <input
-                      type="number"
-                      step="any"
-                      placeholder="aplicar"
-                      style={{ width: 80, padding: "2px 4px", textAlign: "right", color: "inherit", background: "transparent", border: "1px dashed #475569", borderRadius: 4, font: "inherit" }}
-                      onBlur={(e) => { if (e.target.value !== "") { setContaTodos(c, Number(e.target.value)); e.target.value = ""; } }}
-                      onKeyDown={(e) => { if (e.key === "Enter") e.target.blur(); }}
-                    />
-                  )}</td>
-                </tr>
-              )),
-            ];
-          })}
-        </tbody>
+        <tbody>{corpo}</tbody>
       </table>
+      {Object.keys(AJUDA_GRUPO).map((g) => (
+        <p key={g} className="page-subtitle" style={{ fontSize: "0.8rem", opacity: 0.75, margin: "0.15rem 0" }}><strong>{g}:</strong> {AJUDA_GRUPO[g]}</p>
+      ))}
 
-      <p className="page-subtitle" style={{ marginTop: "0.5rem" }}>
+      {d.clientes_publicos_a_confirmar?.length > 0 && (
+        <>
+          <div className="section-title" onClick={() => alterna("pub")} style={{ cursor: "pointer" }}>{seta("pub")} Clientes classificados como PÚBLICOS (confirmar)</div>
+          {abertos.pub && (
+            <ul style={{ fontSize: "0.85rem" }}>
+              {d.clientes_publicos_a_confirmar.map((n) => (<li key={n}>{n}</li>))}
+            </ul>
+          )}
+        </>
+      )}
+
+      <p className="page-subtitle" style={{ marginTop: "0.75rem" }}>
         {d.aviso}
       </p>
     </>
